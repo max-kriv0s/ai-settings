@@ -1,0 +1,45 @@
+version: "3"
+
+vars:
+  UV_CACHE_DIR: .uv-cache
+  GENERATE: ai_settings/scripts/generate.py
+  SYNC: ai_settings/scripts/sync.py
+  SMOKE: ai_settings/hooks/guards/tests/test_smoke.py
+
+tasks:
+  generate:
+    desc: "Generate managed code blocks from ai_settings."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.GENERATE}} apply
+
+  generate-plan:
+    desc: "Show the generated block diff and write *.test_generated.py without touching the guard."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.GENERATE}} plan
+
+  generate-and-sync:
+    desc: "Generate managed code blocks, then sync ai_settings."
+    cmds:
+      - task generate
+      - task sync
+
+  test:
+    desc: "Run secret_guard smoke checks against the live guard."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SMOKE}}
+
+  test-plan:
+    desc: "Regenerate the preview guard and run smoke checks against it, leaving the live guard untouched."
+    cmds:
+      - task generate-plan
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SMOKE}} preview
+
+  plan:
+    desc: "Show ai_settings sync plan without applying changes."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SYNC}} plan
+
+  sync:
+    desc: "Run ai_settings sync. Default: apply all. Usage: task sync -- [plan|apply|check] [all|agents|skills|permissions|mcp|plugins|hooks] [name]. Example: task sync -- apply skills obsidian-cli"
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SYNC}} {{.CLI_ARGS}}

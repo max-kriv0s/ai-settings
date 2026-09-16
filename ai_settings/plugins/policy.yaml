@@ -1,0 +1,12 @@
+# Universal plugin policy
+
+meta:
+  schema_version: 1
+
+trust_policy:
+  enabled: true
+  tools:
+    - all
+  rules: []
+
+# Plugin trust and installation rules will be added here after the policy is agreed.

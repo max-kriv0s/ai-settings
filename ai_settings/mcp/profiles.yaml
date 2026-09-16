@@ -1,0 +1,11 @@
+# Universal MCP profiles
+
+meta:
+  schema_version: 1
+
+profiles:
+  enabled: true
+  tools:
+    - all
+
+# MCP profiles will be added here after connection rules are agreed.

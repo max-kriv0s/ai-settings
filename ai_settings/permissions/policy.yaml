@@ -1,0 +1,54 @@
+# Universal permissions policy
+
+meta:
+  schema_version: 1
+
+read_policy:
+  enabled: true
+  tools:
+    - all
+  # deny_path_segments, deny_file_patterns, allow_environment_templates — из shared/secrets.yaml
+  include: secrets
+
+  order:
+    - deny_sensitive_path_segments
+    - deny_secret_file_patterns
+    - allow_environment_templates
+    - allow_project_source_and_config_files
+    - deny_unknown_sensitive_reads
+
+  allow_extensions:
+    - .go
+    - .py
+    - .ts
+    - .js
+    - .json
+    - .yaml
+    - .yml
+    - .toml
+    - .md
+
+  allow_file_names:
+    - Dockerfile
+    - Taskfile.yml
+    - go.mod
+    - go.sum
+
+  # Хук пропускает, но решение принимает человек: имени ветки в команде нет,
+  # а `git reset` без --hard обратим, но задевает индекс.
+  ask_commands:
+    - git commit *
+    - git reset *
+
+reporting:
+  enabled: true
+  tools:
+    - all
+  sensitive_content_indicators:
+    - secret
+    - token
+    - api_key
+    - private_key
+    - password
+    - credential
+  behavior: Сообщить путь и имя настройки, не выводить значение.

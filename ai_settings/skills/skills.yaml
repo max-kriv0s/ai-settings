@@ -1,0 +1,12 @@
+# Universal skills registry
+
+meta:
+  schema_version: 1
+
+skills:
+  obsidian-cli:
+    enabled: true
+    tools:
+      - all
+    path: ai_settings/skills/obsidian-cli
+    description: Работа с vault llm_wiki через Obsidian CLI.

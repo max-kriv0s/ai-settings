@@ -1,0 +1,11 @@
+# Universal sync registry
+
+meta:
+  schema_version: 1
+
+tools:
+  - all
+  - codex
+  - claude
+  - zed
+  - pi
