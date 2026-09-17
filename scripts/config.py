@@ -20,9 +20,9 @@ CONFIG_FILES = {
     "plugins": ROOT / "plugins" / "policy.yaml",
 }
 
-# Shared fragments pulled into a section by `include: <name>`; see shared/secrets.yaml.
+# Shared fragments pulled into a section by `include: <name>`.
 SHARED_FILES = {
-    "secrets": ROOT / "shared" / "secrets.yaml",
+    "secrets": ROOT / "shared" / "sensitive-artifacts.yaml",
 }
 
 # Each guard keeps its own yaml next to itself, grouped by event: hooks/<Event>/<name>/.
@@ -31,6 +31,7 @@ HOOKS_DIR = ROOT / "hooks"
 
 def hook_config_files() -> list[Path]:
     return sorted(HOOKS_DIR.rglob("*.yaml"))
+
 
 INCLUDE_KEY = "include"
 

@@ -1,14 +1,3 @@
----
-type: wiki/doc
-status: draft
-tags:
-  - "#wiki/doc"
-project: llm_wiki
-related:
----
-
-created_at: `= this.file.ctime` · updated_at: `= this.file.mtime`
-
 # AI Settings
 
 Единое место для настроек ИИ-инструментов и скриптов, которые синхронизируют эти настройки в Codex, Claude Code, Zed и другие инструменты.
@@ -19,9 +8,10 @@ created_at: `= this.file.ctime` · updated_at: `= this.file.mtime`
 - skills/ - описания персональных навыков и правила их установки.
 - mcp/ - профили MCP и правила подключения серверов.
 - plugins/ - политика плагинов и доверия к ним.
-- hooks/ - правила lifecycle hooks.
+- hooks/ - guard-ы жизненного цикла: у каждого свой каталог, yaml и тесты рядом.
+- shared/ - общие фрагменты конфигов, подключаются через `include`.
 - scripts/ - общий sync-скрипт и tool-specific реализация.
-- docs/ - пояснения, инструкции и проектные заметки по ai_settings.
+- docs/ - пояснения, инструкции и проектные заметки.
 
 ## Основной принцип
 

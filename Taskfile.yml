@@ -6,12 +6,13 @@ vars:
   SYNC: scripts/sync.py
   GUARD_TESTS: >-
     hooks/PreToolUse/command_guard/test_command_guard.py
+    hooks/PreToolUse/script_guard/test_script_guard.py
     hooks/PreToolUse/write_guard/test_write_guard.py
     hooks/PostToolUse/output_guard/test_output_guard.py
 
 tasks:
   generate:
-    desc: "Generate managed code blocks from ai_settings."
+    desc: "Generate managed code blocks in every guard from its yaml."
     cmds:
       - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.GENERATE}} apply
 
@@ -21,7 +22,7 @@ tasks:
       - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.GENERATE}} plan
 
   generate-and-sync:
-    desc: "Generate managed code blocks, then sync ai_settings."
+    desc: "Generate managed code blocks, then sync."
     cmds:
       - task generate
       - task sync
@@ -29,22 +30,39 @@ tasks:
   test:
     desc: "Run smoke checks of every guard against its live file."
     cmds:
-      - for: {var: GUARD_TESTS}
+      - for: { var: GUARD_TESTS }
         cmd: UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}}
 
   test-plan:
     desc: "Regenerate preview guards and check them, leaving the live ones untouched."
     cmds:
       - task generate-plan
-      - for: {var: GUARD_TESTS}
+      - for: { var: GUARD_TESTS }
         cmd: UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}} preview
 
+  format:
+    desc: "Format Python sources."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run ruff format .
+
+  lint:
+    desc: "Lint Python sources."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run ruff check .
+
+  format-and-lint:
+    desc: "Fix, format, and lint Python sources."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run ruff check --fix .
+      - task format
+      - task lint
+
   plan:
-    desc: "Show ai_settings sync plan without applying changes."
+    desc: "Show the sync plan without applying changes."
     cmds:
       - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SYNC}} plan
 
   sync:
-    desc: "Run ai_settings sync. Default: apply all. Usage: task sync -- [plan|apply|check] [all|agents|skills|permissions|mcp|plugins|hooks] [name]. Example: task sync -- apply skills obsidian-cli"
+    desc: "Apply the sync. Usage: task sync -- [plan|apply]; without an argument applies."
     cmds:
       - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SYNC}} {{.CLI_ARGS}}

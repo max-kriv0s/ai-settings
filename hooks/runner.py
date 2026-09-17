@@ -20,7 +20,6 @@ import sys
 from pathlib import Path
 from typing import Any, NamedTuple
 
-
 DENY = "deny"
 ALLOW = "allow"
 PREVIEW_MODE = "preview"
@@ -71,9 +70,12 @@ def proposed_edit(path: str, new_string: str) -> HookPayload:
     }
 
 
-def tool_output(value: Any) -> HookPayload:
+def tool_output(value: Any, command: str | None = None) -> HookPayload:
     """A result a tool has already returned."""
-    return {"hook_event_name": "PostToolUse", "tool_response": value}
+    payload: HookPayload = {"hook_event_name": "PostToolUse", "tool_response": value}
+    if command is not None:
+        payload["tool_input"] = {"command": command}
+    return payload
 
 
 def pick_guard(guard: Path, argv: list[str]) -> Path:
@@ -85,7 +87,9 @@ def pick_guard(guard: Path, argv: list[str]) -> Path:
 
     preview = guard.with_name(f"{guard.stem}.test_generated{guard.suffix}")
     if not preview.exists():
-        raise SystemExit(f"preview guard is missing: {preview}; run `task generate-plan`")
+        raise SystemExit(
+            f"preview guard is missing: {preview}; run `task generate-plan`"
+        )
 
     return preview
 

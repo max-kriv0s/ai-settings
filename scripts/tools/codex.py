@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from config import REPO_ROOT
-from contracts import AgentSettings, AgentsMD, Hook, Skill
+from contracts import AgentSettings, Hook, Skill
 from json_settings import (
     HOOK_MATCHER,
     hook_event_name,

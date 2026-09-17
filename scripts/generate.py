@@ -37,7 +37,15 @@ def read_yaml(path: Path) -> dict[str, Any]:
 def clean_section(section: dict[str, Any]) -> dict[str, Any]:
     """Drop registration-only keys: the guard never reads them, the sync adapters do."""
     result = dict(section)
-    for key in ("enabled", "tools", "guard", "event", "matcher", "timeout", "status_message"):
+    for key in (
+        "enabled",
+        "tools",
+        "guard",
+        "event",
+        "matcher",
+        "timeout",
+        "status_message",
+    ):
         result.pop(key, None)
 
     return result

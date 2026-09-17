@@ -12,24 +12,19 @@ import os
 from pathlib import Path
 from typing import Any
 
-# Legacy section names of hooks/hooks.yaml, where the event was the section itself.
-# A per-guard yaml names its event explicitly in `event:`.
-HOOK_EVENT_NAMES = {
-    "pre_tool_use": "PreToolUse",
-    "post_tool_use": "PostToolUse",
-}
-
 # The guard must see every tool, not just Bash: it also checks paths, written content
 # and the working directory.
 HOOK_MATCHER = "*"
 
 
 def hook_event_name(name: str, config: dict[str, Any]) -> str:
+    """Each guard names its event in its yaml; the directory it sits in only mirrors it."""
     event = config.get("event")
-    if isinstance(event, str):
-        return event
+    if not isinstance(event, str):
+        raise SettingsError(f"hook '{name}' must declare a string 'event'")
 
-    return HOOK_EVENT_NAMES.get(name, name)
+    return event
+
 
 _backed_up: set[Path] = set()
 

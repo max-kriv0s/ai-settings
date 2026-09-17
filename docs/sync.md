@@ -11,93 +11,56 @@ created_at: `= this.file.ctime` · updated_at: `= this.file.mtime`
 
 # sync.py
 
-Главный скрипт синхронизации `ai_settings` в настройки ИИ-инструментов.
+Главный скрипт синхронизации настроек этого репозитория в ИИ-инструменты.
 
 ## Базовая модель
 
-Конфиги в `ai_settings` описывают, что должно быть подключено. Скрипт сам
-определяет целевые инструменты по YAML-файлам. В обычном сценарии не нужно
-указывать `codex`, `claude`, `zed` или `pi` руками.
+YAML-файлы описывают, что должно быть подключено. Скрипт сам определяет целевые
+инструменты по полю `tools` в каждой секции: указывать `codex` или `claude`
+руками не нужно.
 
-В `sync.py` есть явный registry поддерживаемых инструментов:
+Список известных инструментов живёт в `scripts/sync.yaml`, реализации - в
+`TOOL_SCRIPTS` (`scripts/config.py`). Скрипт собирает для каждого инструмента
+свой `AgentSettings` и передаёт адаптеру только то, что адресовано именно ему.
 
-```python
-TOOL_SCRIPTS = {
-    "codex": Path("tools/codex.py"),
-    "claude": Path("tools/claude.py"),
-    "zed": Path("tools/zed.py"),
-    "pi": Path("tools/pi.py"),
-}
-```
-
-Скрипт идёт по этому списку, создаёт `ToolSyncState` для каждого инструмента,
-добавляет в него настройки из YAML-секций и вызывает адаптер только если для
-инструмента есть настройки для синхронизации.
-
-Если настройки есть, но адаптер отсутствует или ещё не реализует нужный
-интерфейс, план показывает `adapter_missing` или `not_implemented` и не
-применяет изменения молча.
+Если раздел адресован инструменту, но адаптер его ещё не умеет, план печатает
+`not_implemented` с причиной и ничего не меняет молча.
 
 ## Команды
 
-Показать план по всему:
+Обычно вызывается через `task`:
 
 ```bash
-python3 ai_settings/scripts/sync.py
+task plan   # показать план, ничего не менять
+task sync   # применить
 ```
 
-Применить весь план:
+Напрямую:
 
 ```bash
-python3 ai_settings/scripts/sync.py apply
+python3 scripts/sync.py plan
+python3 scripts/sync.py apply
 ```
 
-Показать план подключения общих AGENTS-правил:
+Без аргумента выполняется `apply`: в обычной работе не нужно думать о режиме,
+а осознанная проверка делается явным `plan`.
 
-```bash
-python3 ai_settings/scripts/sync.py agents
-```
+## Хуки
 
-Применить подключение общих AGENTS-правил:
+Хуки берутся не из одного файла: каждый guard держит свой yaml рядом с собой в
+`hooks/<Event>/<name>/`, и `sync.py` читает их все. Секция обязана назвать
+событие в поле `event`; каталог лишь повторяет его для читаемости.
 
-```bash
-python3 ai_settings/scripts/sync.py apply agents
-```
-
-Показать план только по skills:
-
-```bash
-python3 ai_settings/scripts/sync.py skills
-```
-
-Показать план только по одному skill:
-
-```bash
-python3 ai_settings/scripts/sync.py skills obsidian-cli
-```
-
-Применить только один skill:
-
-```bash
-python3 ai_settings/scripts/sync.py apply skills obsidian-cli
-```
-
-## Правила аргументов
-
-- Без аргументов выполняется `plan all`.
-- `plan`, `apply`, `check` - режимы. Сейчас реализованы `plan` и `apply`.
-- `agents`, `skills`, `permissions`, `mcp`, `plugins`, `hooks` - фильтры
-  разделов. Сейчас реализованы `agents` и `skills`.
-- Третий аргумент уточняет конкретный объект, например `obsidian-cli`.
-- Целевые инструменты берутся из `tools` в соответствующем YAML-файле или разделе.
+Записи в `~/.claude/settings.json` и `~/.codex/hooks.json` не только
+добавляются, но и снимаются: guard, который больше не объявлен, удаляется из
+регистрации. Чужие записи при этом не трогаются - своими считаются только те,
+что запускают файл из нашего каталога хуков.
 
 ## Текущий статус
 
-Сейчас скрипт умеет подключать общие Codex AGENTS-правила через managed block в
-начале `~/.codex/AGENTS.md`, а также Codex skills через symlink из vault в
-`~/.codex/skills`. Claude Code, Zed и pi распознаются как известные
-инструменты, но их синхронизация ещё не реализована.
+Реализованы адаптеры Codex и Claude Code: общий `agent-instructions/global.md`, skills через
+symlink, хуки и permissions. `zed.py` и `pi.py` - заготовки, `sync.py` их пока
+не вызывает.
 
-Следующий шаг - добавить loaders для `permissions`, `hooks`, `mcp` и `plugins`,
-чтобы они наполняли тот же `ToolSyncState`, а не обрабатывались отдельными
-ветками.
+Не реализованы `mcp` и `plugins`: конфиги пустые, адаптеры печатают
+`not_implemented`.

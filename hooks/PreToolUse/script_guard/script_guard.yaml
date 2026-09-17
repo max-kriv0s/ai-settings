@@ -1,0 +1,15 @@
+meta:
+  schema_version: 1
+
+script_guard:
+  enabled: true
+  tools: [all]
+  guard: hooks/PreToolUse/script_guard/script_guard.py
+  event: PreToolUse
+  matcher: "*"
+  timeout: 5
+  status_message: Проверка запускаемого скрипта
+  paths:
+    include: secrets
+  execution:
+    max_bytes: 262144

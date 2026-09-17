@@ -11,32 +11,42 @@ from __future__ import annotations
 import fnmatch
 import json
 import re
+import shlex
 import sys
 from pathlib import PurePath
 from typing import Any
 
-
 # BEGIN AI_SETTINGS GENERATED
-GUARD_SETTINGS: dict[str, Any] = {'output_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
-                            'deny_file_patterns': ['.env',
-                                                   '.env.*',
-                                                   '*.local.*',
-                                                   '*.secret',
-                                                   '*.secrets',
-                                                   '*.pem',
-                                                   'credentials',
-                                                   'credentials.json',
-                                                   'credentials.yaml',
-                                                   'credentials.yml',
-                                                   '.netrc',
-                                                   '.pgpass'],
-                            'allow_environment_templates': ['*.example']},
-                  'secret_indicators': ['secret',
-                                        'token',
-                                        'api_key',
-                                        'private_key',
-                                        'password',
-                                        'credential']}}
+GUARD_SETTINGS: dict[str, Any] = {
+    "output_guard": {
+        "paths": {
+            "deny_path_segments": [".ssh", "ssh"],
+            "deny_file_patterns": [
+                ".env",
+                ".env.*",
+                "*.local.*",
+                "*.secret",
+                "*.secrets",
+                "*.pem",
+                "credentials",
+                "credentials.json",
+                "credentials.yaml",
+                "credentials.yml",
+                ".netrc",
+                ".pgpass",
+            ],
+            "allow_environment_templates": ["*.example"],
+        },
+        "secret_indicators": [
+            "secret",
+            "token",
+            "api_key",
+            "private_key",
+            "password",
+            "credential",
+        ],
+    }
+}
 # END AI_SETTINGS GENERATED
 
 
@@ -46,9 +56,12 @@ KEY_FILE_PATTERN = re.compile(r"(?i)^(id_rsa|id_dsa|id_ecdsa|id_ed25519)$")
 PRIVATE_KEY_PATTERN = re.compile(r"(?i)BEGIN (OPENSSH|RSA|DSA|EC) PRIVATE KEY")
 
 # In output a leaked value has no quotes around it: `AWS_SECRET_ACCESS_KEY=wJalr...`.
-# The indicator is a part of the name, not the whole of it, so the rest of the name is
-# allowed between it and the separator.
-SECRET_ASSIGNMENT = r"(?i){indicator}[\w.-]*\s*[:=]\s*['\"]?[^'\"\s]{{8,}}"
+# An indicator must be a complete name component: `token_value` is suspicious, while
+# a normal implementation variable such as `tokens` is not.
+SECRET_ASSIGNMENT = (
+    r"(?i)(?<![A-Za-z0-9])(?:[A-Za-z0-9]+[_.-])*{indicator}"
+    r"(?:[_.-][A-Za-z0-9]+)*\s*[:=]\s*['\"]?[^'\"\s]{{8,}}"
+)
 
 TOKEN_PATTERN = re.compile(r"[\w./~:-]+")
 
@@ -79,6 +92,30 @@ def response_text(tool_response: Any) -> str:
     return text.replace("\\n", " ").replace("\\t", " ")
 
 
+def is_plain_text_read(payload: dict[str, Any]) -> bool:
+    """Whether this result came from a single non-executing text reader command."""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return False
+
+    command = tool_input.get("command")
+    if not isinstance(command, str):
+        return False
+
+    if re.search(r"[|;&`<>]|\$\(|<\(", command):
+        return False
+
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return False
+
+    if not tokens:
+        return False
+
+    return PurePath(tokens[0]).name in {"cat", "sed", "grep", "rg", "head", "tail"}
+
+
 def matches_any(file_name: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatchcase(file_name, pattern) for pattern in patterns)
 
@@ -98,7 +135,9 @@ def find_denied_path(text: str) -> str | None:
         if "/" in token:
             segments = [part for part in PurePath(token).parts if part not in {"", "/"}]
             if any(segment in denied_segments for segment in segments):
-                return "Blocked because the tool output references a denied path segment."
+                return (
+                    "Blocked because the tool output references a denied path segment."
+                )
 
         if matches_any(file_name, denied_files) or KEY_FILE_PATTERN.match(file_name):
             return "Blocked because the tool output names a file that may hold secrets."
@@ -125,9 +164,10 @@ def find_secret(text: str) -> str | None:
 def inspect(payload: dict[str, Any]) -> str | None:
     text = response_text(payload.get("tool_response"))
 
-    reason = find_denied_path(text)
-    if reason is not None:
-        return reason
+    if not is_plain_text_read(payload):
+        reason = find_denied_path(text)
+        if reason is not None:
+            return reason
 
     return find_secret(text)
 

@@ -204,12 +204,12 @@ def sync_permission(permission: Permission, mode: str) -> None:
 
 def sync_mcp(mcp: Mcp, mode: str) -> None:
     print(f"not_implemented: mcp {mcp.name} -> claude")
-    print("  reason: ai_settings/mcp/profiles.yaml has no MCP profiles defined yet")
+    print("  reason: mcp/profiles.yaml has no MCP profiles defined yet")
 
 
 def sync_plugin(plugin: Plugin, mode: str) -> None:
     print(f"not_implemented: plugin {plugin.name} -> claude")
-    print("  reason: ai_settings/plugins/policy.yaml has no trust rules defined yet")
+    print("  reason: plugins/policy.yaml has no trust rules defined yet")
 
 
 def sync(settings: AgentSettings, mode: str) -> None:

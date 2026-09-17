@@ -13,7 +13,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from runner import ALLOW, DENY, Case, proposed_edit, proposed_write, run  # noqa: E402
 
-
 GUARD = Path(__file__).resolve().parent / "write_guard.py"
 
 # Опасные строки собираются из кусков: иначе сам файл теста — это запись секрета,

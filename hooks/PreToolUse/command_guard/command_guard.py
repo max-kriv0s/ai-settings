@@ -16,87 +16,114 @@ import sys
 from pathlib import PurePath
 from typing import Any
 
-
 # BEGIN AI_SETTINGS GENERATED
-GUARD_SETTINGS: dict[str, Any] = {'command_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
-                             'deny_file_patterns': ['.env',
-                                                    '.env.*',
-                                                    '*.local.*',
-                                                    '*.secret',
-                                                    '*.secrets',
-                                                    '*.pem',
-                                                    'credentials',
-                                                    'credentials.json',
-                                                    'credentials.yaml',
-                                                    'credentials.yml',
-                                                    '.netrc',
-                                                    '.pgpass'],
-                             'allow_environment_templates': ['*.example']},
-                   'destructive_commands': {'filesystem': ['^rm\\b',
-                                                           '^find\\b.*\\s-delete\\b',
-                                                           '^find\\b.*\\s-exec\\s+rm\\b',
-                                                           '^(shred|unlink)\\b',
-                                                           '>\\s*/dev/sd[a-z]'],
-                                            'git': ['^git\\s+(?:-{1,2}[\\w-]+(?:=\\S+)?(?:\\s+\\S+)?\\s+)*push\\b',
-                                                    '^git\\s+reset\\b.*--hard\\b',
-                                                    '^git\\s+branch\\s+-D\\b',
-                                                    '^git\\s+filter-(branch|repo)\\b',
-                                                    '^git\\s+clean\\s+-[a-z]*f',
-                                                    '^git\\s+commit\\b.*--no-verify\\b',
-                                                    '^git\\s+commit\\b.*--amend\\b'],
-                                            'secret_exfiltration': ['^curl\\b.*\\s-d\\b.*(?:password|secret|token|api_key)=',
-                                                                    '^wget\\b.*--post-data=.*(?:password|secret|token)'],
-                                            'package_install': ['^(npm|yarn|pnpm)\\s+(?:install|i|add|global)\\b',
-                                                                '^pip3?\\s+install\\b',
-                                                                '^uv\\s+(?:add|pip\\s+install|tool\\s+install)\\b',
-                                                                '^uv\\s+run\\b.*--with\\b',
-                                                                '^pipx\\s+install\\b',
-                                                                '^(gem|cargo|go|brew)\\s+install\\b']},
-                   'blocked_commands': {'environment_dump': ['^(env|set|export)\\s*$',
-                                                             '^export\\s+-p\\b',
-                                                             '^printenv\\b'],
-                                        'docker_config': ['^docker\\s+compose\\s+config\\b',
-                                                          '^docker-compose\\s+config\\b'],
-                                        'remote_access': ['^(ssh|scp|sftp|ssh-add|ssh-agent|ssh-keygen|ssh-copy-id)\\b',
-                                                          '\\b(IdentityFile|IdentitiesOnly|SSH_AUTH_SOCK)\\b',
-                                                          '(ssh://|git@[^:\\s]+:)']},
-                   'interpreters': {'names': ['python',
-                                              'node',
-                                              'ruby',
-                                              'perl',
-                                              'bash',
-                                              'sh',
-                                              'zsh'],
-                                    'shells': ['bash', 'sh', 'zsh'],
-                                    'valued_flags': ['-W',
-                                                     '-X',
-                                                     '-I',
-                                                     '-o',
-                                                     '--require',
-                                                     '--loader',
-                                                     '--import'],
-                                    'safe_flags': ['--version', '-V', '--help', '-h'],
-                                    'wrappers': ['uv run',
-                                                 'poetry run',
-                                                 'sudo',
-                                                 'env',
-                                                 'timeout',
-                                                 'nohup',
-                                                 'nice',
-                                                 'xargs',
-                                                 'command',
-                                                 'exec',
-                                                 'time',
-                                                 'do',
-                                                 'then',
-                                                 'else'],
-                                    'wrapper_valued_flags': ['-u',
-                                                             '-I',
-                                                             '-s',
-                                                             '-n',
-                                                             '-g',
-                                                             '--user',
-                                                             '--signal']}}}
+GUARD_SETTINGS: dict[str, Any] = {
+    "command_guard": {
+        "paths": {
+            "deny_path_segments": [".ssh", "ssh"],
+            "deny_file_patterns": [
+                ".env",
+                ".env.*",
+                "*.local.*",
+                "*.secret",
+                "*.secrets",
+                "*.pem",
+                "credentials",
+                "credentials.json",
+                "credentials.yaml",
+                "credentials.yml",
+                ".netrc",
+                ".pgpass",
+            ],
+            "allow_environment_templates": ["*.example"],
+        },
+        "destructive_commands": {
+            "filesystem": [
+                "^rm\\b",
+                "^find\\b.*\\s-delete\\b",
+                "^find\\b.*\\s-exec\\s+rm\\b",
+                "^(shred|unlink)\\b",
+                ">\\s*/dev/sd[a-z]",
+            ],
+            "git": [
+                "^git\\s+(?:-{1,2}[\\w-]+(?:=\\S+)?(?:\\s+\\S+)?\\s+)*push\\b",
+                "^git\\s+reset\\b.*--hard\\b",
+                "^git\\s+branch\\s+-D\\b",
+                "^git\\s+filter-(branch|repo)\\b",
+                "^git\\s+clean\\s+-[a-z]*f",
+                "^git\\s+commit\\b.*--no-verify\\b",
+                "^git\\s+commit\\b.*--amend\\b",
+            ],
+            "secret_exfiltration": [
+                "^curl\\b.*\\s-d\\b.*(?:password|secret|token|api_key)=",
+                "^wget\\b.*--post-data=.*(?:password|secret|token)",
+            ],
+            "package_install": [
+                "^(npm|yarn|pnpm)\\s+(?:install|i|add|global)\\b",
+                "^pip3?\\s+install\\b",
+                "^uv\\s+(?:add|pip\\s+install|tool\\s+install)\\b",
+                "^uv\\s+run\\b.*--with\\b",
+                "^pipx\\s+install\\b",
+                "^(gem|cargo|go|brew)\\s+install\\b",
+            ],
+        },
+        "blocked_commands": {
+            "environment_dump": [
+                "^(env|set|export)\\s*$",
+                "^export\\s+-p\\b",
+                "^printenv\\b",
+            ],
+            "docker_config": [
+                "^docker\\s+compose\\s+config\\b",
+                "^docker-compose\\s+config\\b",
+            ],
+            "remote_access": [
+                "^(ssh|scp|sftp|ssh-add|ssh-agent|ssh-keygen|ssh-copy-id)\\b",
+                "\\b(IdentityFile|IdentitiesOnly|SSH_AUTH_SOCK)\\b",
+                "(ssh://|git@[^:\\s]+:)",
+            ],
+        },
+        "interpreters": {
+            "names": ["python", "node", "ruby", "perl", "bash", "sh", "zsh"],
+            "shells": ["bash", "sh", "zsh"],
+            "valued_flags": [
+                "-W",
+                "-X",
+                "-I",
+                "-o",
+                "--require",
+                "--loader",
+                "--import",
+            ],
+            "safe_flags": ["--version", "-V", "--help", "-h"],
+            "wrappers": [
+                "uv run",
+                "poetry run",
+                "sudo",
+                "env",
+                "timeout",
+                "nohup",
+                "nice",
+                "xargs",
+                "command",
+                "exec",
+                "time",
+                "do",
+                "then",
+                "else",
+            ],
+            "wrapper_valued_flags": [
+                "-u",
+                "-I",
+                "-s",
+                "-n",
+                "-g",
+                "--user",
+                "--signal",
+            ],
+        },
+    }
+}
 # END AI_SETTINGS GENERATED
 
 
@@ -302,7 +329,9 @@ def is_code_flag(argument: str, short_flags: tuple[str, ...]) -> bool:
     if argument.startswith("--"):
         return False
 
-    return argument.startswith("-") and any(flag in argument[1:] for flag in short_flags)
+    return argument.startswith("-") and any(
+        flag in argument[1:] for flag in short_flags
+    )
 
 
 def reads_code_from_argument_or_stdin(
@@ -426,8 +455,13 @@ def inspect(payload: dict[str, Any]) -> str | None:
     if reason is not None:
         return reason
 
+    if payload.get("tool_name") in {"Write", "Edit", "MultiEdit", "ApplyPatch"}:
+        return None
+
     command = tool_input.get("command")
     if not isinstance(command, str) or not command:
+        return None
+    if command.startswith("*** Begin Patch"):
         return None
 
     reason = inspect_patterns(command)

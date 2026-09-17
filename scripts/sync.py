@@ -200,8 +200,8 @@ def add_agent_settings(
 
 def load_agents_settings(sync_settings: SyncSettings) -> None:
     agents_md = AgentsMD(
-        source_path=ROOT / "AGENTS.md",
-        include_path=f"~/{(ROOT / 'AGENTS.md').relative_to(Path.home())}",
+        source_path=ROOT / "agent-instructions" / "global.md",
+        include_path=f"~/{(ROOT / 'agent-instructions' / 'global.md').relative_to(Path.home())}",
     )
 
     for agent_name in sync_settings.agent_names:
