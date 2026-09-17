@@ -8,5 +8,5 @@ skills:
     enabled: true
     tools:
       - all
-    path: ai_settings/skills/obsidian-cli
+    path: skills/obsidian-cli
     description: Работа с vault llm_wiki через Obsidian CLI.

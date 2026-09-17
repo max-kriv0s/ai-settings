@@ -6,12 +6,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-from config import REPO_ROOT
+from config import HOOKS_DIR, REPO_ROOT
 from contracts import AgentSettings, Hook, Mcp, Permission, Plugin, Skill
 from json_settings import (
-    HOOK_EVENT_NAMES,
     HOOK_MATCHER,
+    hook_event_name,
     merge_hook,
+    prune_hooks,
     read_settings,
     write_settings,
 )
@@ -92,24 +93,41 @@ def hook_guard_source(hook: Hook) -> Path | None:
     return REPO_ROOT / guard
 
 
-def sync_hook(hook: Hook, mode: str) -> None:
-    guard_path = hook_guard_source(hook)
-    if guard_path is None:
-        return
+def sync_hooks(hooks: list[Hook], mode: str) -> None:
+    """Register every declared guard, then drop our entries that are no longer declared.
 
-    event_name = HOOK_EVENT_NAMES.get(hook.name, hook.name)
-    command = f"python3 {guard_path}"
-
-    # `timeout` and `status_message` from hooks.yaml are Codex registration fields;
-    # support for them in Claude Code is unconfirmed, so nothing extra is written here.
+    All guards are written in one pass: they share the settings file, and pruning needs
+    the full picture of what is declared before it can tell a stale entry from a new one.
+    """
     settings = read_settings(CLAUDE_SETTINGS_FILE)
-    action = merge_hook(settings, event_name, command)
+    declared: dict[str, set[str]] = {}
+    changed = False
 
-    print(f"{action}: hook {hook.name} -> claude")
-    print(f"  target: {CLAUDE_SETTINGS_FILE}")
-    print(f"  entry: hooks.{event_name}[matcher={HOOK_MATCHER}] -> {command}")
+    for hook in hooks:
+        guard_path = hook_guard_source(hook)
+        if guard_path is None:
+            continue
 
-    if mode == "apply" and action != "ok":
+        event_name = hook_event_name(hook.name, hook.config)
+        command = f"python3 {guard_path}"
+        declared.setdefault(event_name, set()).add(command)
+
+        # `timeout` and `status_message` from the yaml are Codex registration fields;
+        # support for them in Claude Code is unconfirmed, so nothing extra is written.
+        action = merge_hook(settings, event_name, command, guard_path.name)
+        changed = changed or action != "ok"
+
+        print(f"{action}: hook {hook.name} -> claude")
+        print(f"  target: {CLAUDE_SETTINGS_FILE}")
+        print(f"  entry: hooks.{event_name}[matcher={HOOK_MATCHER}] -> {command}")
+
+    for event_name, commands in declared.items():
+        for command in prune_hooks(settings, event_name, str(HOOKS_DIR), commands):
+            changed = True
+            print(f"remove_hook: {event_name} -> claude")
+            print(f"  entry: {command}")
+
+    if mode == "apply" and changed:
         write_settings(CLAUDE_SETTINGS_FILE, settings)
 
 
@@ -124,9 +142,14 @@ def derive_deny_patterns(permission: Permission) -> list[str]:
 
 
 def derive_ask_entries(permission: Permission) -> list[str]:
-    """Commands the hook lets through but a human should confirm, e.g. `git commit`."""
-    ask_commands = permission.config.get("ask_commands") or []
-    return [f"Bash({command})" for command in ask_commands if isinstance(command, str)]
+    """What a human confirms: bash commands wrapped in Bash(), tools named as they are."""
+    config = permission.config
+    commands = config.get("ask_commands") or []
+    tools = config.get("ask_tools") or []
+
+    entries = [f"Bash({command})" for command in commands if isinstance(command, str)]
+    entries.extend(tool for tool in tools if isinstance(tool, str))
+    return entries
 
 
 def merge_permission_list(
@@ -195,14 +218,7 @@ def sync(settings: AgentSettings, mode: str) -> None:
     for skill in settings.skills:
         sync_skill(skill, mode)
 
-    synced_hooks = set()
-    for hook in settings.hooks:
-        guard_path = hook_guard_source(hook)
-        if guard_path is None or hook.name in synced_hooks:
-            continue
-
-        synced_hooks.add(hook.name)
-        sync_hook(hook, mode)
+    sync_hooks(settings.hooks, mode)
 
     for permission in settings.permissions:
         sync_permission(permission, mode)

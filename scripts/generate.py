@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from config import CONFIG_FILES, ROOT, resolve_includes
+from config import REPO_ROOT, hook_config_files, resolve_includes
 
 BEGIN_MARKER = "# BEGIN AI_SETTINGS GENERATED"
 END_MARKER = "# END AI_SETTINGS GENERATED"
@@ -37,7 +37,7 @@ def read_yaml(path: Path) -> dict[str, Any]:
 def clean_section(section: dict[str, Any]) -> dict[str, Any]:
     """Drop registration-only keys: the guard never reads them, the sync adapters do."""
     result = dict(section)
-    for key in ("enabled", "tools", "guard", "timeout", "status_message"):
+    for key in ("enabled", "tools", "guard", "event", "matcher", "timeout", "status_message"):
         result.pop(key, None)
 
     return result
@@ -113,31 +113,34 @@ def read_mode(argv: list[str]) -> str:
 
 def main(argv: list[str]) -> int:
     mode = read_mode(argv)
-    hooks_config = read_yaml(CONFIG_FILES["hooks"])
-    validate_hooks_config(hooks_config, CONFIG_FILES["hooks"])
-    settings_by_guard = {}
+    settings_by_guard: dict[str, dict[str, Any]] = {}
 
-    for hook_name, hook_config in hooks_config.items():
-        if hook_name == "meta":
-            continue
+    # Every yaml under hooks/ describes one guard; a guard gets only its own section.
+    for config_path in hook_config_files():
+        hooks_config = read_yaml(config_path)
+        validate_hooks_config(hooks_config, config_path)
 
-        guard = hook_config["guard"]
-        guard_settings = settings_by_guard.setdefault(guard, {})
-        guard_settings[hook_name] = clean_section(hook_config)
+        for hook_name, hook_config in hooks_config.items():
+            if hook_name == "meta":
+                continue
+
+            guard = hook_config["guard"]
+            guard_settings = settings_by_guard.setdefault(guard, {})
+            guard_settings[hook_name] = clean_section(hook_config)
 
     for guard, settings in settings_by_guard.items():
-        guard_path = ROOT.parent / guard
+        guard_path = REPO_ROOT / guard
         content = build_generated_content(guard_path, settings)
 
         if mode == "plan":
             print_diff(guard_path, content)
             target = preview_path(guard_path)
             target.write_text(content, encoding="utf-8")
-            print(f"preview: {target.relative_to(ROOT.parent)}")
+            print(f"preview: {target.relative_to(REPO_ROOT)}")
             continue
 
         guard_path.write_text(content, encoding="utf-8")
-        print(f"updated: {guard_path.relative_to(ROOT.parent)}")
+        print(f"updated: {guard_path.relative_to(REPO_ROOT)}")
 
     return 0
 

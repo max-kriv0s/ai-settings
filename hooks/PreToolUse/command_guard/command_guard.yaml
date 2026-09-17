@@ -1,0 +1,132 @@
+# Что агент собирается выполнить: команда и пути, которые она называет.
+# Событие видно из каталога — PreToolUse.
+
+meta:
+  schema_version: 1
+
+command_guard:
+  enabled: true
+  tools:
+    - all
+  guard: hooks/PreToolUse/command_guard/command_guard.py
+  event: PreToolUse
+  matcher: "*"
+  timeout: 5
+  status_message: Проверка команды
+
+  # deny_path_segments, deny_file_patterns, allow_environment_templates
+  paths:
+    include: secrets
+
+  # Паттерны матчатся по сегменту команды: строка разрезана по `|`, `;`, `&&`, `$(`,
+  # переводу строки; с начала сняты sudo / uv run / do / FOO=bar. Поэтому `^` означает
+  # «команда начинается с», и поиск этих слов внутри кавычек не срабатывает.
+  destructive_commands:
+    filesystem:
+      - '^rm\b'
+      - '^find\b.*\s-delete\b'
+      - '^find\b.*\s-exec\s+rm\b'
+      - '^(shred|unlink)\b'
+      - '>\s*/dev/sd[a-z]'
+
+    git:
+      - '^git\s+(?:-{1,2}[\w-]+(?:=\S+)?(?:\s+\S+)?\s+)*push\b'
+      - '^git\s+reset\b.*--hard\b'
+      - '^git\s+branch\s+-D\b'
+      - '^git\s+filter-(branch|repo)\b'
+      - '^git\s+clean\s+-[a-z]*f'
+      - '^git\s+commit\b.*--no-verify\b'
+      - '^git\s+commit\b.*--amend\b'
+
+    secret_exfiltration:
+      - '^curl\b.*\s-d\b.*(?:password|secret|token|api_key)='
+      - '^wget\b.*--post-data=.*(?:password|secret|token)'
+
+    # Агент не ставит пакеты. `uv sync` и `uv run` разрешены: они разворачивают уже
+    # объявленное окружение, а не добавляют зависимость.
+    package_install:
+      - '^(npm|yarn|pnpm)\s+(?:install|i|add|global)\b'
+      - '^pip3?\s+install\b'
+      - '^uv\s+(?:add|pip\s+install|tool\s+install)\b'
+      - '^uv\s+run\b.*--with\b'
+      - '^pipx\s+install\b'
+      - '^(gem|cargo|go|brew)\s+install\b'
+
+  # Ничего не разрушают, но раскрывают секреты или дают доступ наружу.
+  blocked_commands:
+    environment_dump:
+      - '^(env|set|export)\s*$'
+      - '^export\s+-p\b'
+      - '^printenv\b'
+
+    docker_config:
+      - '^docker\s+compose\s+config\b'
+      - '^docker-compose\s+config\b'
+
+    remote_access:
+      - '^(ssh|scp|sftp|ssh-add|ssh-agent|ssh-keygen|ssh-copy-id)\b'
+      - '\b(IdentityFile|IdentitiesOnly|SSH_AUTH_SOCK)\b'
+      - '(ssh://|git@[^:\s]+:)'
+
+  # Откуда интерпретатор берёт код: файл и -m разрешены, аргумент и stdin — нет.
+  # Шеллы здесь же: `curl x | bash` — это bash, читающий stdin.
+  interpreters:
+    names:
+      - python
+      - node
+      - ruby
+      - perl
+      - bash
+      - sh
+      - zsh
+
+    # У шеллов код передаётся только через -c: их `-e` — это errexit.
+    shells:
+      - bash
+      - sh
+      - zsh
+
+    # Следующий токен — значение флага, а не имя файла.
+    valued_flags:
+      - -W
+      - -X
+      - -I
+      - -o
+      - --require
+      - --loader
+      - --import
+
+    # Печатает и выходит, кода не исполняет.
+    safe_flags:
+      - --version
+      - -V
+      - --help
+      - -h
+
+    # Снимаются с начала сегмента, включая ключевые слова шелла.
+    wrappers:
+      - uv run
+      - poetry run
+      - sudo
+      - env
+      - timeout
+      - nohup
+      - nice
+      - xargs
+      - command
+      - exec
+      - time
+      - do
+      - then
+      - else
+
+    # Флаги обёрток, забирающие следующий токен: иначе `sudo -u deploy rm` оставляет
+    # первым токеном `deploy`, и команда уезжает с позиции 0.
+    wrapper_valued_flags:
+      - -u
+      - -I
+      - -s
+      - -n
+      - -g
+      - --user
+      - --signal

@@ -2,9 +2,12 @@ version: "3"
 
 vars:
   UV_CACHE_DIR: .uv-cache
-  GENERATE: ai_settings/scripts/generate.py
-  SYNC: ai_settings/scripts/sync.py
-  SMOKE: ai_settings/hooks/guards/tests/test_smoke.py
+  GENERATE: scripts/generate.py
+  SYNC: scripts/sync.py
+  GUARD_TESTS: >-
+    hooks/PreToolUse/command_guard/test_command_guard.py
+    hooks/PreToolUse/write_guard/test_write_guard.py
+    hooks/PostToolUse/output_guard/test_output_guard.py
 
 tasks:
   generate:
@@ -24,15 +27,17 @@ tasks:
       - task sync
 
   test:
-    desc: "Run secret_guard smoke checks against the live guard."
+    desc: "Run smoke checks of every guard against its live file."
     cmds:
-      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SMOKE}}
+      - for: {var: GUARD_TESTS}
+        cmd: UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}}
 
   test-plan:
-    desc: "Regenerate the preview guard and run smoke checks against it, leaving the live guard untouched."
+    desc: "Regenerate preview guards and check them, leaving the live ones untouched."
     cmds:
       - task generate-plan
-      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.SMOKE}} preview
+      - for: {var: GUARD_TESTS}
+        cmd: UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}} preview
 
   plan:
     desc: "Show ai_settings sync plan without applying changes."

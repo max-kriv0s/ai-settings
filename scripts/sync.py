@@ -10,7 +10,15 @@ from types import ModuleType
 from typing import Any
 
 import yaml
-from config import CONFIG_FILES, ROOT, SYNC_CONFIG, TOOL_SCRIPTS, resolve_includes
+from config import (
+    CONFIG_FILES,
+    REPO_ROOT,
+    ROOT,
+    SYNC_CONFIG,
+    TOOL_SCRIPTS,
+    hook_config_files,
+    resolve_includes,
+)
 from contracts import AgentSettings, AgentsMD, Hook, Mcp, Permission, Plugin, Skill
 
 sys.dont_write_bytecode = True
@@ -213,7 +221,7 @@ def load_skills_settings(sync_settings: SyncSettings) -> None:
         skill_path = skill_config.get("path")
         skill = Skill(
             skill_id=skill_name,
-            path=ROOT.parent / skill_path,
+            path=REPO_ROOT / skill_path,
             description=skill_config.get("description", ""),
         )
 
@@ -225,46 +233,49 @@ def load_skills_settings(sync_settings: SyncSettings) -> None:
 
 def load_named_settings(
     sync_settings: SyncSettings,
-    config_key: str,
+    config_paths: list[Path],
     target_field: str,
     item_class: type[Permission] | type[Mcp] | type[Plugin] | type[Hook],
 ) -> None:
-    config_path = CONFIG_FILES[config_key]
-    config = read_yaml(config_path)
-    validate_settings_config(config, config_path)
+    for config_path in config_paths:
+        config = read_yaml(config_path)
+        validate_settings_config(config, config_path)
 
-    for setting_name, setting_config in config.items():
-        if setting_name in CONFIG_META_KEYS:
-            continue
+        for setting_name, setting_config in config.items():
+            if setting_name in CONFIG_META_KEYS:
+                continue
 
-        if not is_enabled(setting_config, config_path):
-            continue
+            if not is_enabled(setting_config, config_path):
+                continue
 
-        item = item_class(
-            name=setting_name,
-            config=setting_config_without_routing(setting_config),
-        )
+            item = item_class(
+                name=setting_name,
+                config=setting_config_without_routing(setting_config),
+            )
 
-        tools = read_tools(setting_config, config_path)
-        agent_names = expand_agent_names(sync_settings, tools)
+            tools = read_tools(setting_config, config_path)
+            agent_names = expand_agent_names(sync_settings, tools)
 
-        add_agent_settings(sync_settings, agent_names, target_field, item)
+            add_agent_settings(sync_settings, agent_names, target_field, item)
 
 
 def load_permissions_settings(sync_settings: SyncSettings) -> None:
-    load_named_settings(sync_settings, "permissions", "permissions", Permission)
+    load_named_settings(
+        sync_settings, [CONFIG_FILES["permissions"]], "permissions", Permission
+    )
 
 
 def load_mcp_settings(sync_settings: SyncSettings) -> None:
-    load_named_settings(sync_settings, "mcp", "mcp", Mcp)
+    load_named_settings(sync_settings, [CONFIG_FILES["mcp"]], "mcp", Mcp)
 
 
 def load_plugins_settings(sync_settings: SyncSettings) -> None:
-    load_named_settings(sync_settings, "plugins", "plugins", Plugin)
+    load_named_settings(sync_settings, [CONFIG_FILES["plugins"]], "plugins", Plugin)
 
 
 def load_hooks_settings(sync_settings: SyncSettings) -> None:
-    load_named_settings(sync_settings, "hooks", "hooks", Hook)
+    """Every guard keeps its own yaml next to itself, so hooks come from many files."""
+    load_named_settings(sync_settings, hook_config_files(), "hooks", Hook)
 
 
 def sync_codex(sync_settings: SyncSettings, mode: str) -> None:

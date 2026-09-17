@@ -1,0 +1,27 @@
+# Что агент собирается записать на диск. Проверяется ДО записи: PostToolUse файл уже
+# не вернёт. Событие видно из каталога — PreToolUse.
+
+meta:
+  schema_version: 1
+
+write_guard:
+  enabled: true
+  tools:
+    - all
+  guard: hooks/PreToolUse/write_guard/write_guard.py
+  event: PreToolUse
+  matcher: "*"
+  timeout: 5
+  status_message: Проверка записываемого текста
+
+  # Имена, присваивание литерала которым считается секретом в коде.
+  secret_indicators:
+    - secret
+    - token
+    - api_key
+    - private_key
+    - password
+    - credential
+
+  # Решение 2026-09-17: проверка упоминаний (ssh/scp/sftp) в тексте убрана. Записанный
+  # файл сам по себе ничего не делает, опасное содержимое ловится при попытке запуска.

@@ -7,15 +7,15 @@ from typing import Any
 
 import yaml
 
+# scripts/ lives in the repository root, so both point at the same place. REPO_ROOT is
+# kept as a separate name because `guard` paths in YAML are resolved against it.
 ROOT = Path(__file__).resolve().parents[1]
-
-# `guard` paths in YAML are relative to the repository root, not to ai_settings.
-REPO_ROOT = ROOT.parent
+REPO_ROOT = ROOT
 
 CONFIG_FILES = {
     "skills": ROOT / "skills" / "skills.yaml",
     "permissions": ROOT / "permissions" / "policy.yaml",
-    "hooks": ROOT / "hooks" / "hooks.yaml",
+    # Hooks are not here: each guard keeps its own yaml, see hook_config_files().
     "mcp": ROOT / "mcp" / "profiles.yaml",
     "plugins": ROOT / "plugins" / "policy.yaml",
 }
@@ -24,6 +24,13 @@ CONFIG_FILES = {
 SHARED_FILES = {
     "secrets": ROOT / "shared" / "secrets.yaml",
 }
+
+# Each guard keeps its own yaml next to itself, grouped by event: hooks/<Event>/<name>/.
+HOOKS_DIR = ROOT / "hooks"
+
+
+def hook_config_files() -> list[Path]:
+    return sorted(HOOKS_DIR.rglob("*.yaml"))
 
 INCLUDE_KEY = "include"
 

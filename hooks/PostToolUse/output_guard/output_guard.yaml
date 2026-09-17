@@ -1,0 +1,30 @@
+# Что инструмент вернул. Событие видно из каталога — PostToolUse.
+#
+# Ограничение, которое надо помнить: в Claude Code `decision: block` вывод от модели
+# НЕ скрывает — сообщение приходит рядом с результатом. В Codex — заменяет результат.
+# Поэтому здесь только высокоточные проверки, иначе получаем шум без пользы.
+
+meta:
+  schema_version: 1
+
+output_guard:
+  enabled: true
+  tools:
+    - all
+  guard: hooks/PostToolUse/output_guard/output_guard.py
+  event: PostToolUse
+  matcher: "*"
+  timeout: 5
+  status_message: Проверка вывода на секреты
+
+  # deny_path_segments, deny_file_patterns, allow_environment_templates
+  paths:
+    include: secrets
+
+  secret_indicators:
+    - secret
+    - token
+    - api_key
+    - private_key
+    - password
+    - credential
