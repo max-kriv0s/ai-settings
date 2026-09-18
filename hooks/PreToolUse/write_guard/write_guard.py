@@ -13,18 +13,12 @@ import sys
 from typing import Any
 
 # BEGIN AI_SETTINGS GENERATED
-GUARD_SETTINGS: dict[str, Any] = {
-    "write_guard": {
-        "secret_indicators": [
-            "secret",
-            "token",
-            "api_key",
-            "private_key",
-            "password",
-            "credential",
-        ]
-    }
-}
+GUARD_SETTINGS: dict[str, Any] = {'write_guard': {'secret_indicators': ['secret',
+                                       'token',
+                                       'api_key',
+                                       'private_key',
+                                       'password',
+                                       'credential']}}
 # END AI_SETTINGS GENERATED
 
 

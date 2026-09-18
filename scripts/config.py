@@ -23,6 +23,9 @@ CONFIG_FILES = {
 # Shared fragments pulled into a section by `include: <name>`.
 SHARED_FILES = {
     "secrets": ROOT / "shared" / "sensitive-artifacts.yaml",
+    "interpreters": ROOT / "shared" / "interpreters.yaml",
+    "read_commands": ROOT / "shared" / "read-commands.yaml",
+    "command_syntax": ROOT / "shared" / "command-syntax.yaml",
 }
 
 # Each guard keeps its own yaml next to itself, grouped by event: hooks/<Event>/<name>/.

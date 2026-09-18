@@ -21,6 +21,11 @@ output_guard:
   paths:
     include: secrets
 
+  # read_commands — их вывод не проверяется на имена файлов: показать текст файла
+  # это не то же самое, что до него добраться.
+  commands:
+    include: read_commands
+
   secret_indicators:
     - secret
     - token

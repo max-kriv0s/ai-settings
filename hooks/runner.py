@@ -94,7 +94,14 @@ def pick_guard(guard: Path, argv: list[str]) -> Path:
     return preview
 
 
+# What a guard is allowed to answer. `permissionDecision` is read by both Claude Code
+# and Codex; `decision: block` is the PostToolUse form. Anything else is a broken
+# contract: the tool would ignore it, and the guard would only look like it works.
+DENY_DECISIONS = {"deny", "block"}
+
+
 def decide(guard: Path, payload: HookPayload) -> str:
+    """Silence means allow; anything else must be a decision both tools understand."""
     result = subprocess.run(
         [sys.executable, str(guard)],
         input=json.dumps(payload),
@@ -102,7 +109,28 @@ def decide(guard: Path, payload: HookPayload) -> str:
         text=True,
         timeout=10,
     )
-    return ALLOW if not result.stdout.strip() else DENY
+
+    answer = result.stdout.strip()
+    if not answer:
+        return ALLOW
+
+    try:
+        parsed = json.loads(answer)
+    except json.JSONDecodeError:
+        return "не JSON"
+
+    if not isinstance(parsed, dict):
+        return "не объект"
+
+    specific = parsed.get("hookSpecificOutput")
+    decision = specific.get("permissionDecision") if isinstance(specific, dict) else None
+    if not isinstance(decision, str):
+        decision = parsed.get("decision")
+
+    if not isinstance(decision, str):
+        return "без решения"
+
+    return DENY if decision in DENY_DECISIONS else f"решение {decision}"
 
 
 def run(guard: Path, cases: list[Case], argv: list[str]) -> int:

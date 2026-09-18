@@ -1,3 +1,13 @@
+#!/usr/bin/env python3
+"""PreToolUse guard: what the file about to run DOES.
+
+command_guard sees only the command line, and a command line says nothing about the
+script behind it: `bash deploy.sh` and `task build` look the same whatever is inside.
+This guard opens that file and refuses to run it when it names a denied path.
+
+It is a filter, not a barrier: a path assembled at runtime cannot be seen here.
+"""
+
 from __future__ import annotations
 
 import fnmatch
@@ -9,105 +19,209 @@ from pathlib import Path, PurePath
 from typing import Any
 
 # BEGIN AI_SETTINGS GENERATED
-GUARD_SETTINGS: dict[str, Any] = {
-    "script_guard": {
-        "paths": {
-            "deny_path_segments": [".ssh", "ssh"],
-            "deny_file_patterns": [
-                ".env",
-                ".env.*",
-                "*.local.*",
-                "*.secret",
-                "*.secrets",
-                "*.pem",
-                "credentials",
-                "credentials.json",
-                "credentials.yaml",
-                "credentials.yml",
-                ".netrc",
-                ".pgpass",
-            ],
-            "allow_environment_templates": ["*.example"],
-        },
-        "execution": {"max_bytes": 262144},
-    }
-}
+GUARD_SETTINGS: dict[str, Any] = {'script_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
+                            'deny_file_patterns': ['.env',
+                                                   '.env.*',
+                                                   '*.local.*',
+                                                   '*.secret',
+                                                   '*.secrets',
+                                                   '*.pem',
+                                                   'credentials',
+                                                   'credentials.json',
+                                                   'credentials.yaml',
+                                                   'credentials.yml',
+                                                   '.netrc',
+                                                   '.pgpass'],
+                            'allow_environment_templates': ['*.example']},
+                  'syntax': {'segment_separator': '\\|\\||&&|[|;&\\n\\r]|\\$\\(|<\\(|`'},
+                  'interpreters': {'names': ['python', 'node', 'ruby', 'perl', 'bash', 'sh', 'zsh'],
+                                   'shells': ['bash', 'sh', 'zsh'],
+                                   'launchers': ['source', '.']},
+                  'commands': {'read_commands': ['cat', 'sed', 'grep', 'rg', 'head', 'tail']},
+                  'execution': {'max_bytes': 262144}}}
 # END AI_SETTINGS GENERATED
 
-SETTINGS = GUARD_SETTINGS.get("script_guard", {})
-SHELL_SYNTAX = re.compile(r"[|;&`<>]|\$\(|<\(")
-RISKY_OPERATION = re.compile(
-    r"\b(cat|sed|grep|awk|open|read_text|read_bytes|subprocess|Popen|run|system|exec)\b"
-)
+SETTINGS: dict[str, Any] = GUARD_SETTINGS.get("script_guard", {})
+
+# Only a path-like token is checked: a bare word such as `credentials` in a comment is
+# prose, while `config/.env` and `.env` name a file. Same rule as command_guard uses.
+PATH_TOKEN = re.compile(r"[~./A-Za-z0-9_-]+")
+
+# A path built at runtime cannot be checked as text.
+DYNAMIC_MARKS = ("$", "`", "*", "?", "[")
+
+# `python3.12` and `python3` are the same launcher as `python`, as in command_guard.
+VERSION_SUFFIX = re.compile(r"[\d.]+$")
 
 
 def deny(reason: str) -> None:
+    """Both tools read this shape: Claude Code and Codex parse permissionDecision."""
     print(
         json.dumps(
             {
-                "decision": "block",
-                "reason": reason,
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
-                    "additionalContext": reason,
-                },
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": reason,
+                }
             }
         )
     )
     sys.exit(0)
 
 
-def policy() -> dict[str, Any]:
-    value = SETTINGS.get("paths", {})
+def section(name: str) -> dict[str, Any]:
+    value = SETTINGS.get(name, {})
     return value if isinstance(value, dict) else {}
 
 
+def launcher_names() -> set[str]:
+    """What runs a file: an interpreter, a shell, or `source`."""
+    interpreters = section("interpreters")
+    names = interpreters.get("names", [])
+    return set(names) | set(interpreters.get("launchers", []))
+
+
+def looks_like_path(value: str) -> bool:
+    return "/" in value or value.startswith(".")
+
+
 def denied(value: str) -> bool:
-    paths = policy()
+    paths = section("paths")
     parts = [part for part in PurePath(value).parts if part not in {"", "/"}]
     if any(part in paths.get("deny_path_segments", []) for part in parts):
         return True
+
     name = PurePath(value).name
     if any(
         fnmatch.fnmatchcase(name, pattern)
         for pattern in paths.get("allow_environment_templates", [])
     ):
         return False
+
     return any(
         fnmatch.fnmatchcase(name, pattern)
         for pattern in paths.get("deny_file_patterns", [])
     )
 
 
-def targets(command: str, cwd: str) -> tuple[list[Path], str | None]:
-    try:
-        tokens = shlex.split(command.replace("|", " | "))
-    except ValueError:
-        return [], "ambiguous shell syntax"
+def script_token(tokens: list[str]) -> tuple[str | None, str | None]:
+    """Which token names the code being run — not every token that happens to exist.
 
-    result: list[Path] = []
-    if not tokens:
-        return result, None
+    `/bin/ls docs` runs ls and reads nothing: the file at position 0 is a binary, and
+    `docs` is an argument. Only a launcher's first argument, or a command given as a
+    path, is a script.
+    """
+    launcher = VERSION_SUFFIX.sub("", PurePath(tokens[0]).name)
+    if launcher in section("commands").get("read_commands", []):
+        return None, None
 
-    launcher = Path(tokens[0]).name
-    if launcher in {"bash", "sh", "zsh", "source", "."}:
-        values = tokens[1:]
-    elif tokens[0].startswith(("./", "/")):
-        values = tokens[:1]
+    if launcher in launcher_names():
+        rest = tokens[1:]
+    elif looks_like_path(tokens[0]):
+        rest = tokens[:1]
     else:
-        return result, None
+        return None, None
 
-    for token in values:
-        if token in {"|", "-"} or token.startswith("-"):
+    for token in rest:
+        if token.startswith("-") or token == "|":
             continue
-        if any(mark in token for mark in ("$", "`", "*", "?", "[")):
-            if "/" in token or "." in token:
-                return [], "dynamic file path"
+
+        if any(mark in token for mark in DYNAMIC_MARKS):
+            if looks_like_path(token) or "." in token:
+                return None, "the script path is built at runtime"
             continue
-        candidate = Path(token) if Path(token).is_absolute() else Path(cwd) / token
+
+        return token, None
+
+    return None, None
+
+
+def command_segments(command: str) -> list[str]:
+    """`cd x && python3 y.py` is two commands; the second one is the script."""
+    pattern = section("syntax").get("segment_separator", r"[|;&\n\r]")
+    return [
+        segment.strip() for segment in re.split(pattern, command) if segment.strip()
+    ]
+
+
+def changed_directory(tokens: list[str], current: Path) -> Path | None:
+    """`cd sub && python x.py` runs x.py in sub, so the path must follow the cd."""
+    if PurePath(tokens[0]).name != "cd" or len(tokens) < 2:
+        return None
+
+    target = tokens[1]
+    if any(mark in target for mark in DYNAMIC_MARKS):
+        return None
+
+    return Path(target) if Path(target).is_absolute() else current / target
+
+
+def script_paths(command: str, cwd: str) -> tuple[list[Path], str | None]:
+    paths: list[Path] = []
+    current = Path(cwd)
+
+    for segment in command_segments(command):
+        # A `|` inside quotes splits the segment and leaves the quoting unbalanced, as in
+        # `grep -E 'a|b'`. That is not a reason to refuse: fall back to a rough split the
+        # way command_guard does, and let the launcher check decide.
+        try:
+            tokens = shlex.split(segment)
+        except ValueError:
+            tokens = segment.split()
+
+        if not tokens:
+            continue
+
+        moved = changed_directory(tokens, current)
+        if moved is not None:
+            current = moved
+            continue
+
+        token, reason = script_token(tokens)
+        if reason is not None:
+            return [], reason
+
+        if token is None:
+            continue
+
+        candidate = Path(token) if Path(token).is_absolute() else current / token
         if candidate.is_file():
-            result.append(candidate)
-    return result, None
+            paths.append(candidate)
+
+    return paths, None
+
+
+def script_text(path: Path) -> tuple[str | None, str | None]:
+    """The first max_bytes of the file, or None when it is not readable text.
+
+    A binary is not a script we can read, and its size is not a reason to refuse: a
+    large generated script is checked by its beginning rather than blocked outright.
+    """
+    max_bytes = section("execution").get("max_bytes", 262144)
+    if not isinstance(max_bytes, int):
+        return None, "the guard has no size limit configured"
+
+    try:
+        with path.open("rb") as handle:
+            chunk = handle.read(max_bytes)
+    except OSError:
+        return None, "the script cannot be read"
+
+    try:
+        return chunk.decode("utf-8"), None
+    except UnicodeDecodeError:
+        return None, None
+
+
+def find_denied_line(content: str) -> bool:
+    """Every line is checked. A script hides a read in whatever call it likes."""
+    for line in content.splitlines():
+        for value in PATH_TOKEN.findall(line):
+            if looks_like_path(value) and denied(value):
+                return True
+
+    return False
 
 
 def inspect(payload: dict[str, Any]) -> str | None:
@@ -116,38 +230,28 @@ def inspect(payload: dict[str, Any]) -> str | None:
 
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
-    if not isinstance(command, str):
+    if not isinstance(command, str) or command.startswith("*** Begin Patch"):
         return None
-    if command.startswith("*** Begin Patch"):
-        return None
+
     cwd = payload.get("cwd")
     if not isinstance(cwd, str):
-        return "Blocked because script cwd is missing."
-    files, reason = targets(command, cwd)
-    if reason:
+        return "Blocked because the working directory of the script is unknown."
+
+    paths, reason = script_paths(command, cwd)
+    if reason is not None:
         return f"Blocked because {reason}."
-    for candidate in files:
-        if denied(str(candidate)):
-            return "Blocked because the script path is denied."
-        try:
-            path = candidate.resolve(strict=True)
-            max_bytes = SETTINGS.get("execution", {}).get("max_bytes", 262144)
-            if (
-                not path.is_file()
-                or not isinstance(max_bytes, int)
-                or path.stat().st_size > max_bytes
-            ):
-                return "Blocked because script cannot be inspected safely."
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            return "Blocked because script cannot be inspected safely."
+
+    for path in paths:
         if denied(str(path)):
-            return "Blocked because the script path is denied."
-        for line in content.splitlines():
-            if RISKY_OPERATION.search(line):
-                for value in re.findall(r"[~./A-Za-z0-9_-]+", line):
-                    if denied(value):
-                        return "Blocked because script operates on a denied path."
+            return "Blocked because the script path itself is denied."
+
+        content, reason = script_text(path)
+        if reason is not None:
+            return f"Blocked because {reason}."
+
+        if content is not None and find_denied_line(content):
+            return "Blocked because the script names a denied path."
+
     return None
 
 
@@ -156,10 +260,17 @@ def main() -> int:
         payload = json.load(sys.stdin)
     except json.JSONDecodeError:
         return 0
-    if isinstance(payload, dict) and payload.get("hook_event_name") == "PreToolUse":
-        reason = inspect(payload)
-        if reason:
-            deny(reason)
+
+    if not isinstance(payload, dict):
+        return 0
+
+    if payload.get("hook_event_name") != "PreToolUse":
+        return 0
+
+    reason = inspect(payload)
+    if reason is not None:
+        deny(reason)
+
     return 0
 
 

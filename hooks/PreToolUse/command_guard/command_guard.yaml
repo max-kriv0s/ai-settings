@@ -18,6 +18,10 @@ command_guard:
   paths:
     include: secrets
 
+  # segment_separator — чем командная строка режется на отдельные команды
+  syntax:
+    include: command_syntax
+
   # Паттерны матчатся по сегменту команды: строка разрезана по `|`, `;`, `&&`, `$(`,
   # переводу строки; с начала сняты sudo / uv run / do / FOO=bar. Поэтому `^` означает
   # «команда начинается с», и поиск этих слов внутри кавычек не срабатывает.
@@ -71,20 +75,8 @@ command_guard:
   # Откуда интерпретатор берёт код: файл и -m разрешены, аргумент и stdin — нет.
   # Шеллы здесь же: `curl x | bash` — это bash, читающий stdin.
   interpreters:
-    names:
-      - python
-      - node
-      - ruby
-      - perl
-      - bash
-      - sh
-      - zsh
-
-    # У шеллов код передаётся только через -c: их `-e` — это errexit.
-    shells:
-      - bash
-      - sh
-      - zsh
+    # names, shells, launchers — из shared/interpreters.yaml
+    include: interpreters
 
     # Следующий токен — значение флага, а не имя файла.
     valued_flags:

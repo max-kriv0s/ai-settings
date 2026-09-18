@@ -11,5 +11,19 @@ script_guard:
   status_message: Проверка запускаемого скрипта
   paths:
     include: secrets
+
+  # segment_separator — чем командная строка режется на отдельные команды
+  syntax:
+    include: command_syntax
+
+  # names, shells, launchers — чем запускают файл с кодом
+  interpreters:
+    include: interpreters
+
+  # read_commands — их аргумент показывают, а не исполняют
+  commands:
+    include: read_commands
+
   execution:
+    # Сколько байт скрипта читать. Большой файл не запрещается: проверяется начало.
     max_bytes: 262144

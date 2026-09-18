@@ -1,8 +1,8 @@
 # Единый источник правды о том, что считается секретом.
 #
-# Подмешивается в любую секцию, где стоит `include: secrets` — сейчас это
-# `hooks.yaml: pre_tool_use.read_guard` (его читает guard) и
-# `permissions/policy.yaml: read_policy` (его читает синк permissions Claude Code).
+# Подмешивается в любую секцию, где стоит `include: secrets`: секции `paths` у
+# command_guard, script_guard и output_guard, а также `read_policy` в
+# `permissions/policy.yaml`, откуда синк берёт deny-правила Claude Code.
 # Ключи, заданные в самой секции, имеют приоритет над этим файлом.
 
 deny_path_segments:

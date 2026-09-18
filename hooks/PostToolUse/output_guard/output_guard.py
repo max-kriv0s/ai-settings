@@ -17,36 +17,27 @@ from pathlib import PurePath
 from typing import Any
 
 # BEGIN AI_SETTINGS GENERATED
-GUARD_SETTINGS: dict[str, Any] = {
-    "output_guard": {
-        "paths": {
-            "deny_path_segments": [".ssh", "ssh"],
-            "deny_file_patterns": [
-                ".env",
-                ".env.*",
-                "*.local.*",
-                "*.secret",
-                "*.secrets",
-                "*.pem",
-                "credentials",
-                "credentials.json",
-                "credentials.yaml",
-                "credentials.yml",
-                ".netrc",
-                ".pgpass",
-            ],
-            "allow_environment_templates": ["*.example"],
-        },
-        "secret_indicators": [
-            "secret",
-            "token",
-            "api_key",
-            "private_key",
-            "password",
-            "credential",
-        ],
-    }
-}
+GUARD_SETTINGS: dict[str, Any] = {'output_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
+                            'deny_file_patterns': ['.env',
+                                                   '.env.*',
+                                                   '*.local.*',
+                                                   '*.secret',
+                                                   '*.secrets',
+                                                   '*.pem',
+                                                   'credentials',
+                                                   'credentials.json',
+                                                   'credentials.yaml',
+                                                   'credentials.yml',
+                                                   '.netrc',
+                                                   '.pgpass'],
+                            'allow_environment_templates': ['*.example']},
+                  'commands': {'read_commands': ['cat', 'sed', 'grep', 'rg', 'head', 'tail']},
+                  'secret_indicators': ['secret',
+                                        'token',
+                                        'api_key',
+                                        'private_key',
+                                        'password',
+                                        'credential']}}
 # END AI_SETTINGS GENERATED
 
 
@@ -113,7 +104,8 @@ def is_plain_text_read(payload: dict[str, Any]) -> bool:
     if not tokens:
         return False
 
-    return PurePath(tokens[0]).name in {"cat", "sed", "grep", "rg", "head", "tail"}
+    commands = SETTINGS.get("commands", {})
+    return PurePath(tokens[0]).name in commands.get("read_commands", [])
 
 
 def matches_any(file_name: str, patterns: list[str]) -> bool:

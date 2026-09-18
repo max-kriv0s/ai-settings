@@ -17,113 +17,87 @@ from pathlib import PurePath
 from typing import Any
 
 # BEGIN AI_SETTINGS GENERATED
-GUARD_SETTINGS: dict[str, Any] = {
-    "command_guard": {
-        "paths": {
-            "deny_path_segments": [".ssh", "ssh"],
-            "deny_file_patterns": [
-                ".env",
-                ".env.*",
-                "*.local.*",
-                "*.secret",
-                "*.secrets",
-                "*.pem",
-                "credentials",
-                "credentials.json",
-                "credentials.yaml",
-                "credentials.yml",
-                ".netrc",
-                ".pgpass",
-            ],
-            "allow_environment_templates": ["*.example"],
-        },
-        "destructive_commands": {
-            "filesystem": [
-                "^rm\\b",
-                "^find\\b.*\\s-delete\\b",
-                "^find\\b.*\\s-exec\\s+rm\\b",
-                "^(shred|unlink)\\b",
-                ">\\s*/dev/sd[a-z]",
-            ],
-            "git": [
-                "^git\\s+(?:-{1,2}[\\w-]+(?:=\\S+)?(?:\\s+\\S+)?\\s+)*push\\b",
-                "^git\\s+reset\\b.*--hard\\b",
-                "^git\\s+branch\\s+-D\\b",
-                "^git\\s+filter-(branch|repo)\\b",
-                "^git\\s+clean\\s+-[a-z]*f",
-                "^git\\s+commit\\b.*--no-verify\\b",
-                "^git\\s+commit\\b.*--amend\\b",
-            ],
-            "secret_exfiltration": [
-                "^curl\\b.*\\s-d\\b.*(?:password|secret|token|api_key)=",
-                "^wget\\b.*--post-data=.*(?:password|secret|token)",
-            ],
-            "package_install": [
-                "^(npm|yarn|pnpm)\\s+(?:install|i|add|global)\\b",
-                "^pip3?\\s+install\\b",
-                "^uv\\s+(?:add|pip\\s+install|tool\\s+install)\\b",
-                "^uv\\s+run\\b.*--with\\b",
-                "^pipx\\s+install\\b",
-                "^(gem|cargo|go|brew)\\s+install\\b",
-            ],
-        },
-        "blocked_commands": {
-            "environment_dump": [
-                "^(env|set|export)\\s*$",
-                "^export\\s+-p\\b",
-                "^printenv\\b",
-            ],
-            "docker_config": [
-                "^docker\\s+compose\\s+config\\b",
-                "^docker-compose\\s+config\\b",
-            ],
-            "remote_access": [
-                "^(ssh|scp|sftp|ssh-add|ssh-agent|ssh-keygen|ssh-copy-id)\\b",
-                "\\b(IdentityFile|IdentitiesOnly|SSH_AUTH_SOCK)\\b",
-                "(ssh://|git@[^:\\s]+:)",
-            ],
-        },
-        "interpreters": {
-            "names": ["python", "node", "ruby", "perl", "bash", "sh", "zsh"],
-            "shells": ["bash", "sh", "zsh"],
-            "valued_flags": [
-                "-W",
-                "-X",
-                "-I",
-                "-o",
-                "--require",
-                "--loader",
-                "--import",
-            ],
-            "safe_flags": ["--version", "-V", "--help", "-h"],
-            "wrappers": [
-                "uv run",
-                "poetry run",
-                "sudo",
-                "env",
-                "timeout",
-                "nohup",
-                "nice",
-                "xargs",
-                "command",
-                "exec",
-                "time",
-                "do",
-                "then",
-                "else",
-            ],
-            "wrapper_valued_flags": [
-                "-u",
-                "-I",
-                "-s",
-                "-n",
-                "-g",
-                "--user",
-                "--signal",
-            ],
-        },
-    }
-}
+GUARD_SETTINGS: dict[str, Any] = {'command_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
+                             'deny_file_patterns': ['.env',
+                                                    '.env.*',
+                                                    '*.local.*',
+                                                    '*.secret',
+                                                    '*.secrets',
+                                                    '*.pem',
+                                                    'credentials',
+                                                    'credentials.json',
+                                                    'credentials.yaml',
+                                                    'credentials.yml',
+                                                    '.netrc',
+                                                    '.pgpass'],
+                             'allow_environment_templates': ['*.example']},
+                   'syntax': {'segment_separator': '\\|\\||&&|[|;&\\n\\r]|\\$\\(|<\\(|`'},
+                   'destructive_commands': {'filesystem': ['^rm\\b',
+                                                           '^find\\b.*\\s-delete\\b',
+                                                           '^find\\b.*\\s-exec\\s+rm\\b',
+                                                           '^(shred|unlink)\\b',
+                                                           '>\\s*/dev/sd[a-z]'],
+                                            'git': ['^git\\s+(?:-{1,2}[\\w-]+(?:=\\S+)?(?:\\s+\\S+)?\\s+)*push\\b',
+                                                    '^git\\s+reset\\b.*--hard\\b',
+                                                    '^git\\s+branch\\s+-D\\b',
+                                                    '^git\\s+filter-(branch|repo)\\b',
+                                                    '^git\\s+clean\\s+-[a-z]*f',
+                                                    '^git\\s+commit\\b.*--no-verify\\b',
+                                                    '^git\\s+commit\\b.*--amend\\b'],
+                                            'secret_exfiltration': ['^curl\\b.*\\s-d\\b.*(?:password|secret|token|api_key)=',
+                                                                    '^wget\\b.*--post-data=.*(?:password|secret|token)'],
+                                            'package_install': ['^(npm|yarn|pnpm)\\s+(?:install|i|add|global)\\b',
+                                                                '^pip3?\\s+install\\b',
+                                                                '^uv\\s+(?:add|pip\\s+install|tool\\s+install)\\b',
+                                                                '^uv\\s+run\\b.*--with\\b',
+                                                                '^pipx\\s+install\\b',
+                                                                '^(gem|cargo|go|brew)\\s+install\\b']},
+                   'blocked_commands': {'environment_dump': ['^(env|set|export)\\s*$',
+                                                             '^export\\s+-p\\b',
+                                                             '^printenv\\b'],
+                                        'docker_config': ['^docker\\s+compose\\s+config\\b',
+                                                          '^docker-compose\\s+config\\b'],
+                                        'remote_access': ['^(ssh|scp|sftp|ssh-add|ssh-agent|ssh-keygen|ssh-copy-id)\\b',
+                                                          '\\b(IdentityFile|IdentitiesOnly|SSH_AUTH_SOCK)\\b',
+                                                          '(ssh://|git@[^:\\s]+:)']},
+                   'interpreters': {'names': ['python',
+                                              'node',
+                                              'ruby',
+                                              'perl',
+                                              'bash',
+                                              'sh',
+                                              'zsh'],
+                                    'shells': ['bash', 'sh', 'zsh'],
+                                    'launchers': ['source', '.'],
+                                    'valued_flags': ['-W',
+                                                     '-X',
+                                                     '-I',
+                                                     '-o',
+                                                     '--require',
+                                                     '--loader',
+                                                     '--import'],
+                                    'safe_flags': ['--version', '-V', '--help', '-h'],
+                                    'wrappers': ['uv run',
+                                                 'poetry run',
+                                                 'sudo',
+                                                 'env',
+                                                 'timeout',
+                                                 'nohup',
+                                                 'nice',
+                                                 'xargs',
+                                                 'command',
+                                                 'exec',
+                                                 'time',
+                                                 'do',
+                                                 'then',
+                                                 'else'],
+                                    'wrapper_valued_flags': ['-u',
+                                                             '-I',
+                                                             '-s',
+                                                             '-n',
+                                                             '-g',
+                                                             '--user',
+                                                             '--signal']}}}
 # END AI_SETTINGS GENERATED
 
 
@@ -138,12 +112,12 @@ PATTERN_SECTIONS = ("destructive_commands", "blocked_commands")
 # Path arguments of non-Bash tools: Read, Edit, Write, Glob, Grep, NotebookEdit.
 PATH_INPUT_FIELDS = ("file_path", "path", "notebook_path")
 
-# Shell separators, command substitution and newlines included. Each segment is analysed
-# on its own, so `cat x.py | python3` is seen as reading stdin, `echo $(python3 -c ...)`
-# cannot hide the interpreter, and a second line is not a blind spot.
-# Plain parentheses are NOT separators: they occur in commit messages far more often than
-# in subshells, and a message in parentheses must not look like a command.
-SEGMENT_SEPARATOR = re.compile(r"\|\||&&|[|;&\n\r]|\$\(|<\(|`")
+# Each segment is analysed on its own, so `cat x.py | python3` is seen as reading stdin,
+# `echo $(python3 -c ...)` cannot hide the interpreter, and a second line is not a blind
+# spot. The pattern is shared with script_guard — see shared/command-syntax.yaml.
+SEGMENT_SEPARATOR = re.compile(
+    SETTINGS.get("syntax", {}).get("segment_separator", r"[|;&\n\r]")
+)
 
 # Flags handing code to an interpreter. Short ones are matched inside a cluster, so `-Bc`
 # counts as `-c`.
