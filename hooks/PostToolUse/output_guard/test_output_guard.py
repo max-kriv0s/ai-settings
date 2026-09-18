@@ -19,8 +19,10 @@ GUARD = Path(__file__).resolve().parent / "output_guard.py"
 # и write_guard не даст его сохранить.
 KEY_HEADER = "-----BEGIN " + "OPENSSH PRIVATE KEY" + "-----"
 LEAKED = "AWS_SECRET" + "_ACCESS_KEY=" + "wJalrXUtnFEMI0123456789"
-ENV_FILE = "." + "env"
-LOCAL_ENV_FILE = ENV_FILE + ".local"
+ENV_FILE = ".env"
+LOCAL_ENV_FILE = ".env.local"
+HOME_KEYS = "/home/user/.ssh"
+AWS = "fixtures/home/.aws/credentials"
 
 CASES: list[Case] = [
     # Секрет в самом выводе, а не имя файла
@@ -30,15 +32,19 @@ CASES: list[Case] = [
         tool_output(KEY_HEADER + "\nb3BlbnNzaC1rZXk=\n"),
     ),
     Case(DENY, "значение секрета без кавычек", tool_output(LEAKED)),
-    Case(DENY, "вывод содержит .env.local", tool_output("config/.env.local\n")),
-    Case(DENY, "путь внутри каталога ключей", tool_output("/home/user/.ssh/config\n")),
-    # Вывод называет файл, который не должен читаться
-    Case(DENY, "вывод содержит .env", tool_output("total 8\n.env\nREADME.md\n")),
     Case(
         DENY,
-        "вывод содержит credentials",
-        tool_output("fixtures/home/.aws/credentials"),
+        "вывод содержит .env.local",
+        tool_output("config/" + LOCAL_ENV_FILE + "\n"),
     ),
+    Case(DENY, "путь внутри каталога ключей", tool_output(HOME_KEYS + "/config\n")),
+    # Вывод называет файл, который не должен читаться
+    Case(
+        DENY,
+        "вывод содержит .env",
+        tool_output("total 8\n" + ENV_FILE + "\nREADME.md\n"),
+    ),
+    Case(DENY, "вывод содержит credentials", tool_output(AWS)),
     Case(DENY, "вывод содержит имя ключа", tool_output("fixtures/keys/id_rsa")),
     # Обычный вывод
     Case(ALLOW, "листинг проекта", tool_output("README.md\npyproject.toml\nscripts\n")),

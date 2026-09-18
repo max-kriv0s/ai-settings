@@ -1,4 +1,9 @@
-"""Smoke checks for command_guard. See hooks/runner.py — nothing here is executed."""
+"""Smoke checks for command_guard. See hooks/runner.py — nothing here is executed.
+
+Пути написаны целиком и намеренно: script_guard читает запускаемый файл и запретит
+запуск этого теста агенту. Так и задумано — тесты запускает человек. Строки
+синтетические, ни один из этих путей на диске не открывается.
+"""
 
 from __future__ import annotations
 
@@ -18,6 +23,13 @@ from runner import (  # noqa: E402
 )
 
 GUARD = Path(__file__).resolve().parent / "command_guard.py"
+
+KEYS = "fixtures/.ssh"
+HOME_KEYS = "fixtures/home/.ssh"
+BACKUP_KEYS = "fixtures/backup/ssh"
+AWS = "fixtures/home/.aws/credentials"
+NETRC = "fixtures/home/.netrc"
+LOCAL_CONF = "fixtures/.zshrc.local.conf"
 
 CASES: list[Case] = [
     # Удаление и порча файлов
@@ -88,14 +100,14 @@ CASES: list[Case] = [
     Case(
         DENY,
         "путь с запрещённым сегментом",
-        proposed_bash("cat fixtures/backup/ssh/config"),
+        proposed_bash(f"cat {BACKUP_KEYS}/config"),
     ),
     Case(
         DENY,
         "cwd внутри каталога ключей",
-        proposed_bash_in("fixtures/home/.ssh", "cat config"),
+        proposed_bash_in(HOME_KEYS, "cat config"),
     ),
-    Case(DENY, "чтение приватного ключа", proposed_read("fixtures/.ssh/id_rsa")),
+    Case(DENY, "чтение приватного ключа", proposed_read(f"{KEYS}/id_rsa")),
     Case(ALLOW, "поиск слова в файлах", proposed_bash("grep ssh README.md")),
     # Окружение
     Case(DENY, "дамп окружения", proposed_bash("env")),
@@ -104,12 +116,12 @@ CASES: list[Case] = [
     ),
     Case(DENY, "export -p", proposed_bash("export -p")),
     # Пути
-    Case(DENY, "чтение credentials", proposed_read("fixtures/home/.aws/credentials")),
-    Case(DENY, "чтение .netrc", proposed_read("fixtures/home/.netrc")),
+    Case(DENY, "чтение credentials", proposed_read(AWS)),
+    Case(DENY, "чтение .netrc", proposed_read(NETRC)),
     Case(DENY, "grep по слову credentials", proposed_bash("grep -rn credentials src/")),
     Case(DENY, "каталог credentials", proposed_bash("mkdir credentials")),
     Case(DENY, "файл с .local.", proposed_bash("docker compose -f app.local.yml up")),
-    Case(DENY, "чтение личного конфига", proposed_read("fixtures/.zshrc.local.conf")),
+    Case(DENY, "чтение личного конфига", proposed_read(LOCAL_CONF)),
     # Утечка наружу
     Case(
         DENY,

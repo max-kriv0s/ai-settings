@@ -69,14 +69,6 @@ GUARD_SETTINGS: dict[str, Any] = {'command_guard': {'paths': {'deny_path_segment
                                               'zsh'],
                                     'shells': ['bash', 'sh', 'zsh'],
                                     'launchers': ['source', '.'],
-                                    'valued_flags': ['-W',
-                                                     '-X',
-                                                     '-I',
-                                                     '-o',
-                                                     '--require',
-                                                     '--loader',
-                                                     '--import'],
-                                    'safe_flags': ['--version', '-V', '--help', '-h'],
                                     'wrappers': ['uv run',
                                                  'poetry run',
                                                  'sudo',
@@ -97,7 +89,15 @@ GUARD_SETTINGS: dict[str, Any] = {'command_guard': {'paths': {'deny_path_segment
                                                              '-n',
                                                              '-g',
                                                              '--user',
-                                                             '--signal']}}}
+                                                             '--signal'],
+                                    'valued_flags': ['-W',
+                                                     '-X',
+                                                     '-I',
+                                                     '-o',
+                                                     '--require',
+                                                     '--loader',
+                                                     '--import'],
+                                    'safe_flags': ['--version', '-V', '--help', '-h']}}}
 # END AI_SETTINGS GENERATED
 
 

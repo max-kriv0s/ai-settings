@@ -28,17 +28,30 @@ tasks:
       - task sync
 
   test:
-    desc: "Run smoke checks of every guard against its live file."
+    desc: "Проверить guard-ы. Без аргумента — все, иначе только указанные файлы. Пример: task test -- hooks/PreToolUse/write_guard/test_write_guard.py"
+    vars:
+      TARGETS: '{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.GUARD_TESTS}}{{end}}'
     cmds:
-      - for: { var: GUARD_TESTS }
-        cmd: UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}}
+      - for: { var: TARGETS }
+        cmd: |
+          echo "→ {{.ITEM}}"
+          UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}}
+
+  test-chain:
+    desc: "Прогнать вызовы через все включённые guard-ы в порядке регистрации."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B hooks/test_chain.py
 
   test-plan:
-    desc: "Regenerate preview guards and check them, leaving the live ones untouched."
+    desc: "То же на превью-guard-ах, боевые не трогаются. Без аргумента — все файлы, иначе указанные."
+    vars:
+      TARGETS: '{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.GUARD_TESTS}}{{end}}'
     cmds:
       - task generate-plan
-      - for: { var: GUARD_TESTS }
-        cmd: UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}} preview
+      - for: { var: TARGETS }
+        cmd: |
+          echo "→ {{.ITEM}}"
+          UV_CACHE_DIR={{.UV_CACHE_DIR}} uv run python -B {{.ITEM}} preview
 
   format:
     desc: "Format Python sources."

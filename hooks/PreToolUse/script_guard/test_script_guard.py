@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from runner import ALLOW, DENY, Case, proposed_bash_in, run
+from runner import ALLOW, DENY, Case, proposed_bash, proposed_bash_in, run
 
 GUARD = Path(__file__).resolve().parent / "script_guard.py"
 
@@ -17,9 +17,7 @@ def main(argv: list[str]) -> int:
         (path / "unsafe.sh").write_text("cat " + "." + "en" + "v\n")
         (path / "unsafe.py").write_text("open(" + "'.env'" + ").read()\n")
         # Ни одного слова из прежнего списка рискованных операций: до правки проходило.
-        (path / "copy.py").write_text(
-            "import shutil\nSOURCE = " + '"config/.env"' + "\n"
-        )
+        (path / "copy.py").write_text('import shutil\nSOURCE = "config/.env"\n')
         # Слово-индикатор без пути — это проза, а не обращение к файлу.
         (path / "prose.py").write_text('"""Работа с credentials пользователя."""\n')
         (path / "guide.md").write_text("Example: cat " + "." + "en" + "v\n")
@@ -78,10 +76,22 @@ def main(argv: list[str]) -> int:
                 proposed_bash_in(root, "py" + "thon3.12 copy.py"),
             ),
             Case(
+                DENY,
+                "обёртка не прячет скрипт",
+                proposed_bash_in(root, "uv run py" + "thon copy.py"),
+            ),
+            Case(
+                DENY,
+                "обёртка с флагом-значением",
+                proposed_bash_in(root, "sudo -u deploy py" + "thon copy.py"),
+            ),
+            Case(
                 ALLOW,
                 "код из stdin оставлен command_guard",
                 proposed_bash_in(root, "ba" + "sh -"),
             ),
+            # Codex не присылает cwd: запрет здесь остановил бы там каждую команду.
+            Case(ALLOW, "вызов без cwd", proposed_bash("git status")),
         ]
         return run(GUARD, cases, argv)
 

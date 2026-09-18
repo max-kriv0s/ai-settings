@@ -36,7 +36,28 @@ GUARD_SETTINGS: dict[str, Any] = {'script_guard': {'paths': {'deny_path_segments
                   'syntax': {'segment_separator': '\\|\\||&&|[|;&\\n\\r]|\\$\\(|<\\(|`'},
                   'interpreters': {'names': ['python', 'node', 'ruby', 'perl', 'bash', 'sh', 'zsh'],
                                    'shells': ['bash', 'sh', 'zsh'],
-                                   'launchers': ['source', '.']},
+                                   'launchers': ['source', '.'],
+                                   'wrappers': ['uv run',
+                                                'poetry run',
+                                                'sudo',
+                                                'env',
+                                                'timeout',
+                                                'nohup',
+                                                'nice',
+                                                'xargs',
+                                                'command',
+                                                'exec',
+                                                'time',
+                                                'do',
+                                                'then',
+                                                'else'],
+                                   'wrapper_valued_flags': ['-u',
+                                                            '-I',
+                                                            '-s',
+                                                            '-n',
+                                                            '-g',
+                                                            '--user',
+                                                            '--signal']},
                   'commands': {'read_commands': ['cat', 'sed', 'grep', 'rg', 'head', 'tail']},
                   'execution': {'max_bytes': 262144}}}
 # END AI_SETTINGS GENERATED
@@ -52,6 +73,48 @@ DYNAMIC_MARKS = ("$", "`", "*", "?", "[")
 
 # `python3.12` and `python3` are the same launcher as `python`, as in command_guard.
 VERSION_SUFFIX = re.compile(r"[\d.]+$")
+
+# A leading `FOO=bar` is not a command; a flag or a number after a wrapper is its own.
+ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+WRAPPER_ARGUMENT = re.compile(r"^(-|\d)")
+
+
+def strip_command_prefix(tokens: list[str]) -> list[str]:
+    """Drop leading `uv run`, `sudo`, `do`, `FOO=bar` so tokens[0] is the real command.
+
+    The same step command_guard does, on the same lists from shared/interpreters.yaml.
+    Without it `uv run python x.py` looks like `uv` and the script is never opened.
+    """
+    interpreters = section("interpreters")
+    wrappers = interpreters.get("wrappers", [])
+    valued_flags = interpreters.get("wrapper_valued_flags", [])
+
+    stripped = True
+    while stripped and tokens:
+        stripped = False
+
+        if ENV_ASSIGNMENT.match(tokens[0]):
+            tokens = tokens[1:]
+            stripped = True
+            continue
+
+        for wrapper in wrappers:
+            parts = wrapper.split()
+            # Compared by base name, so `/usr/bin/sudo` is stripped just like `sudo`.
+            if [PurePath(token).name for token in tokens[: len(parts)]] != parts:
+                continue
+
+            tokens = tokens[len(parts) :]
+            while tokens and WRAPPER_ARGUMENT.match(tokens[0]):
+                takes_value = tokens[0] in valued_flags
+                tokens = tokens[1:]
+                if takes_value and tokens:
+                    tokens = tokens[1:]
+
+            stripped = True
+            break
+
+    return tokens
 
 
 def deny(reason: str) -> None:
@@ -170,6 +233,7 @@ def script_paths(command: str, cwd: str) -> tuple[list[Path], str | None]:
         except ValueError:
             tokens = segment.split()
 
+        tokens = strip_command_prefix(tokens)
         if not tokens:
             continue
 
@@ -233,9 +297,12 @@ def inspect(payload: dict[str, Any]) -> str | None:
     if not isinstance(command, str) or command.startswith("*** Begin Patch"):
         return None
 
+    # Codex не присылает cwd вовсе — его payload это поле не содержит. Запрет здесь
+    # остановил бы там каждую команду, поэтому берём каталог самого процесса: хук
+    # запускается инструментом в каталоге сессии. Не разрешился путь — нечего и проверять.
     cwd = payload.get("cwd")
-    if not isinstance(cwd, str):
-        return "Blocked because the working directory of the script is unknown."
+    if not isinstance(cwd, str) or not cwd:
+        cwd = str(Path.cwd())
 
     paths, reason = script_paths(command, cwd)
     if reason is not None:

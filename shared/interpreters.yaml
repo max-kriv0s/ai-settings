@@ -23,3 +23,33 @@ shells:
 launchers:
   - source
   - "."
+
+# Снимаются с начала команды, чтобы добраться до настоящего имени: `uv run python x.py`
+# — это python. Сюда же ключевые слова шелла: `do python3 $f` в теле цикла — тоже python.
+# Список по своей природе неполон: чего в нём нет, то обёртку не снимет.
+wrappers:
+  - uv run
+  - poetry run
+  - sudo
+  - env
+  - timeout
+  - nohup
+  - nice
+  - xargs
+  - command
+  - exec
+  - time
+  - do
+  - then
+  - else
+
+# Флаги обёрток, забирающие следующий токен: без этого `sudo -u deploy python x.py`
+# оставляет первым токеном `deploy`, и команда уезжает с позиции 0.
+wrapper_valued_flags:
+  - -u
+  - -I
+  - -s
+  - -n
+  - -g
+  - --user
+  - --signal
