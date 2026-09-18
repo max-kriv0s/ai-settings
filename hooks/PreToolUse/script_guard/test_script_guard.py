@@ -68,7 +68,9 @@ def main(argv: list[str]) -> int:
             Case(
                 DENY,
                 "переход в каталог учитывается",
-                proposed_bash_in(str(path.parent), f"cd {path.name} && py" + "thon copy.py"),
+                proposed_bash_in(
+                    str(path.parent), f"cd {path.name} && py" + "thon copy.py"
+                ),
             ),
             Case(
                 DENY,

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import re
 import shlex
 import sys
@@ -20,6 +21,7 @@ from typing import Any
 GUARD_SETTINGS: dict[str, Any] = {'command_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
                              'deny_file_patterns': ['.env',
                                                     '.env.*',
+                                                    '*.local',
                                                     '*.local.*',
                                                     '*.secret',
                                                     '*.secrets',
@@ -57,7 +59,7 @@ GUARD_SETTINGS: dict[str, Any] = {'command_guard': {'paths': {'deny_path_segment
                                                              '^printenv\\b'],
                                         'docker_config': ['^docker\\s+compose\\s+config\\b',
                                                           '^docker-compose\\s+config\\b'],
-                                        'remote_access': ['^(ssh|scp|sftp|ssh-add|ssh-agent|ssh-keygen|ssh-copy-id)\\b',
+                                        'remote_access': ['\\b(ssh|scp|sftp)\\b',
                                                           '\\b(IdentityFile|IdentitiesOnly|SSH_AUTH_SOCK)\\b',
                                                           '(ssh://|git@[^:\\s]+:)']},
                    'interpreters': {'names': ['python',
@@ -178,28 +180,39 @@ def matches_any(file_name: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatchcase(file_name, pattern) for pattern in patterns)
 
 
-def looks_like_path(value: str) -> bool:
-    """A bare word is an argument, not a path: a word in `grep WORD README.md` is not one."""
-    return "/" in value
+def value_parts(value: str) -> list[str]:
+    """Каждая часть токена по отдельности: `--env-file=.env` — это флаг и путь."""
+    parts: list[str] = []
+    for chunk in value.split("="):
+        parts.extend(part for part in PurePath(chunk).parts if part not in {"", "/"})
+
+    return parts
 
 
 def check_path(value: str, subject: str) -> str | None:
-    """Return a reason why this path-like value is denied, or None when allowed."""
+    """Return a reason why this value is denied, or None when allowed.
+
+    Проверяется каждая часть токена и по обоим спискам сразу: запрещённый каталог может
+    стоять в середине пути (`config/credentials/db.yml`), а путь — быть приклеен к флагу
+    через `=`. Условия «похоже на путь» нет: это страховка поверх остальных правил, и
+    голое `ssh` в `grep ssh README.md` тоже считается.
+    """
     paths = section("paths")
+    segments = paths.get("deny_path_segments", [])
+    denied_files = paths.get("deny_file_patterns", [])
+    allowed = paths.get("allow_environment_templates", [])
 
-    if looks_like_path(value) and has_denied_path_segment(
-        value, paths.get("deny_path_segments", [])
-    ):
-        return f"Blocked because {subject} references a denied path segment."
+    for part in value_parts(value):
+        if part in segments:
+            return f"Blocked because {subject} references a denied path segment."
 
-    file_name = PurePath(value).name
-    if matches_any(file_name, paths.get("allow_environment_templates", [])):
-        return None
+        if matches_any(part, allowed):
+            continue
 
-    if matches_any(
-        file_name, paths.get("deny_file_patterns", [])
-    ) or KEY_FILE_PATTERN.match(file_name):
-        return f"Blocked because {subject} may expose secrets or private key material."
+        if matches_any(part, denied_files) or KEY_FILE_PATTERN.match(part):
+            return (
+                f"Blocked because {subject} may expose secrets or private key material."
+            )
 
     return None
 
@@ -380,17 +393,74 @@ def inspect_interpreters(command: str) -> str | None:
     return None
 
 
-def inspect_cwd(payload: dict[str, Any]) -> str | None:
-    """Stop any call made from inside a denied directory, whatever the arguments are."""
+def session_directory(payload: dict[str, Any]) -> str:
+    """Codex does not send `cwd`; the hook runs in the session directory anyway."""
     cwd = payload.get("cwd")
-    if not isinstance(cwd, str) or not cwd:
+    return cwd if isinstance(cwd, str) and cwd else os.getcwd()
+
+
+def resolved_directory(target: str, current: str) -> str:
+    """Where `cd <target>` actually lands: `~` expanded, `..` collapsed, no disk access."""
+    expanded = os.path.expanduser(target)
+    if not os.path.isabs(expanded):
+        expanded = os.path.join(current, expanded)
+
+    return os.path.normpath(expanded)
+
+
+def changed_directory(tokens: list[str], current: str) -> str | None:
+    if PurePath(tokens[0]).name != "cd":
         return None
 
-    denied = section("paths").get("deny_path_segments", [])
-    if has_denied_path_segment(cwd, denied):
-        return "Blocked because the working directory is inside a denied path segment."
+    # Bare `cd` goes home; a path built at runtime cannot be resolved as text.
+    if len(tokens) < 2:
+        return os.path.expanduser("~")
+
+    target = tokens[1]
+    if any(mark in target for mark in ("$", "`", "*", "?")):
+        return None
+
+    return resolved_directory(target, current)
+
+
+def inspect_directories(payload: dict[str, Any], command: str) -> str | None:
+    """Where the command will actually run, `cd` inside the line included.
+
+    Checking only the session directory is not enough: `cd .ssh && cat config` names
+    no denied path — `.ssh` alone is a bare word, and `config` is an ordinary file.
+    The directory it lands in is what gives it away.
+    """
+    interpreters = section("interpreters")
+    wrappers = interpreters.get("wrappers", [])
+    wrapper_valued_flags = interpreters.get("wrapper_valued_flags", [])
+
+    current = session_directory(payload)
+    reason = check_path(current, "the working directory")
+    if reason is not None:
+        return reason
+
+    for segment in command_segments(command):
+        tokens = strip_command_prefix(
+            command_tokens(segment), wrappers, wrapper_valued_flags
+        )
+        if not tokens:
+            continue
+
+        moved = changed_directory(tokens, current)
+        if moved is None:
+            continue
+
+        current = moved
+        reason = check_path(current, "the directory the command changes into")
+        if reason is not None:
+            return reason
 
     return None
+
+
+def inspect_cwd(payload: dict[str, Any]) -> str | None:
+    """The session directory alone — for tools that carry a path instead of a command."""
+    return check_path(session_directory(payload), "the working directory")
 
 
 def inspect_input_paths(tool_input: dict[str, Any]) -> str | None:
@@ -437,6 +507,10 @@ def inspect(payload: dict[str, Any]) -> str | None:
         return None
     if command.startswith("*** Begin Patch"):
         return None
+
+    reason = inspect_directories(payload, command)
+    if reason is not None:
+        return reason
 
     reason = inspect_patterns(command)
     if reason is not None:

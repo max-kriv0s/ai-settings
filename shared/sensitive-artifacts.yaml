@@ -1,8 +1,7 @@
 # Единый источник правды о том, что считается секретом.
 #
-# Подмешивается в любую секцию, где стоит `include: secrets`: секции `paths` у
-# command_guard, script_guard и output_guard, а также `read_policy` в
-# `permissions/policy.yaml`, откуда синк берёт deny-правила Claude Code.
+# Подмешивается в секции `paths` у command_guard, script_guard и output_guard, а также
+# в `read_policy` в `permissions/policy.yaml`, откуда синк берёт deny-правила Claude Code.
 # Ключи, заданные в самой секции, имеют приоритет над этим файлом.
 
 deny_path_segments:
@@ -12,6 +11,7 @@ deny_path_segments:
 deny_file_patterns:
   - .env
   - .env.*
+  - "*.local"
   - "*.local.*"
   - "*.secret"
   - "*.secrets"
@@ -24,5 +24,10 @@ deny_file_patterns:
   - .pgpass
 
 # Файл-пример по определению не содержит значений, поэтому разрешён целиком.
+#
+# Работает так только в Claude Code и в guard-ах. В permissions Codex это разрешение
+# не попадает: `.env.example` подходит одновременно под запрет `**/.env*` и под
+# разрешение `**/*.example`, приоритета по специфичности у него нет, и на таком профиле
+# он падает при загрузке конфига. То есть в Codex файл-пример прочитать нельзя.
 allow_environment_templates:
   - "*.example"

@@ -108,7 +108,35 @@ CASES: list[Case] = [
         proposed_bash_in(HOME_KEYS, "cat config"),
     ),
     Case(DENY, "чтение приватного ключа", proposed_read(f"{KEYS}/id_rsa")),
-    Case(ALLOW, "поиск слова в файлах", proposed_bash("grep ssh README.md")),
+    # Каталог в команде: имени ключа тут нет, выдаёт только то, куда уводит cd.
+    Case(DENY, "переход в каталог ключей", proposed_bash("cd .ssh && cat config")),
+    Case(DENY, "переход по домашнему пути", proposed_bash("cd ~/.ssh && ls -la")),
+    Case(
+        DENY,
+        "переход через две команды",
+        proposed_bash_in("/tmp/home", "cd .. && cd home/.ssh && cat config"),
+    ),
+    Case(ALLOW, "переход в обычный каталог", proposed_bash("cd /tmp && ls")),
+    Case(
+        ALLOW, "возврат на уровень выше", proposed_bash_in("/tmp/home", "cd .. && ls")
+    ),
+    # Слово запрещено целиком, а не только как команда: цена — поиск по нему.
+    Case(DENY, "поиск слова в файлах", proposed_bash("grep ssh README.md")),
+    Case(DENY, "слово в середине команды", proposed_bash("rsync --rsh=ssh a b")),
+    Case(ALLOW, "слово внутри другого", proposed_bash("ls /usr/lib/openssh")),
+    Case(DENY, "каталог ключей аргументом", proposed_bash("tar -cf backup.tar .ssh")),
+    # Каждая часть токена, а не только последняя
+    Case(
+        DENY,
+        "путь приклеен к флагу",
+        proposed_bash("docker compose --env-file=.env up"),
+    ),
+    Case(
+        DENY,
+        "запрещённый каталог в середине",
+        proposed_read("config/credentials/db.yml"),
+    ),
+    Case(DENY, "переход в каталог credentials", proposed_bash("cd credentials && ls")),
     # Окружение
     Case(DENY, "дамп окружения", proposed_bash("env")),
     Case(
@@ -204,7 +232,7 @@ CASES: list[Case] = [
     Case(ALLOW, "shell с файлом", proposed_bash("bash scripts/deploy.sh")),
     Case(ALLOW, "shell с errexit", proposed_bash("bash -e scripts/deploy.sh")),
     Case(ALLOW, "uv sync", proposed_bash("uv sync")),
-    Case(ALLOW, "mdns-имя хоста", proposed_bash("ping -c 1 myhost.local")),
+    Case(DENY, "файл с .local", proposed_bash("ping -c 1 myhost.local")),
     Case(
         ALLOW,
         "исходник с именем credentials",

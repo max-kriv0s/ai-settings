@@ -85,16 +85,29 @@ def build_cases(root: str) -> list[ChainCase]:
 
     return [
         # Опасная команда: до чтения файлов дело не доходит
-        ChainCase(DENY, "command_guard", "удаление файлов", proposed_bash("rm -rf /tmp/x")),
-        ChainCase(DENY, "command_guard", "отправка в origin", proposed_bash("git push")),
         ChainCase(
-            DENY, "command_guard", "код аргументом", proposed_bash('python3 -c "print(1)"')
+            DENY, "command_guard", "удаление файлов", proposed_bash("rm -rf /tmp/x")
+        ),
+        ChainCase(
+            DENY, "command_guard", "отправка в origin", proposed_bash("git push")
+        ),
+        ChainCase(
+            DENY,
+            "command_guard",
+            "код аргументом",
+            proposed_bash('python3 -c "print(1)"'),
         ),
         ChainCase(
             DENY,
             "command_guard",
             "путь к ключам в команде",
             proposed_bash("cat fixtures/.ssh/config"),
+        ),
+        ChainCase(
+            DENY,
+            "command_guard",
+            "переход в каталог ключей",
+            proposed_bash("cd .ssh && cat config"),
         ),
         # Команда безобидна, опасен запускаемый файл — это уже следующий guard
         ChainCase(
@@ -129,9 +142,16 @@ def build_cases(root: str) -> list[ChainCase]:
         ),
         # Обычная работа проходит всю цепочку
         ChainCase(ALLOW, None, "статус репозитория", proposed_bash("git status")),
-        ChainCase(ALLOW, None, "запуск безопасного файла", proposed_bash_in(root, "python3 safe.py")),
+        ChainCase(
+            ALLOW,
+            None,
+            "запуск безопасного файла",
+            proposed_bash_in(root, "python3 safe.py"),
+        ),
         ChainCase(ALLOW, None, "чтение исходника", proposed_read("scripts/sync.py")),
-        ChainCase(ALLOW, None, "обычный вывод", tool_output("README.md\npyproject.toml\n")),
+        ChainCase(
+            ALLOW, None, "обычный вывод", tool_output("README.md\npyproject.toml\n")
+        ),
     ]
 
 

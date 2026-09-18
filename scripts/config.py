@@ -20,13 +20,7 @@ CONFIG_FILES = {
     "plugins": ROOT / "plugins" / "policy.yaml",
 }
 
-# Shared fragments pulled into a section by `include: <name>`.
-SHARED_FILES = {
-    "secrets": ROOT / "shared" / "sensitive-artifacts.yaml",
-    "interpreters": ROOT / "shared" / "interpreters.yaml",
-    "read_commands": ROOT / "shared" / "read-commands.yaml",
-    "command_syntax": ROOT / "shared" / "command-syntax.yaml",
-}
+SHARED_DIR = ROOT / "shared"
 
 # Each guard keeps its own yaml next to itself, grouped by event: hooks/<Event>/<name>/.
 HOOKS_DIR = ROOT / "hooks"
@@ -41,17 +35,23 @@ INCLUDE_KEY = "include"
 SYNC_CONFIG = ROOT / "scripts" / "sync.yaml"
 
 
-def read_shared(name: str) -> dict[str, Any]:
-    path = SHARED_FILES.get(name)
-    if path is None:
-        raise KeyError(f"unknown shared fragment: {name}")
+def read_shared(location: str) -> dict[str, Any]:
+    """Read a shared fragment by its path, relative to the repository root.
+
+    The path is written out in full in the yaml, so what gets included is visible where
+    it is used — no registry of short names to look up and no way for a name and a file
+    to drift apart. Leaving the repository is refused: an include is our own file.
+    """
+    path = (ROOT / location).resolve()
+    if not path.is_relative_to(SHARED_DIR):
+        raise ValueError(f"include must point inside shared/: {location}")
 
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     return data if isinstance(data, dict) else {}
 
 
 def resolve_includes(value: Any) -> Any:
-    """Replace `include: <name>` with the shared fragment. Keys set locally win."""
+    """Replace `include: <path>` with the shared fragment. Keys set locally win."""
     if isinstance(value, list):
         return [resolve_includes(item) for item in value]
 
@@ -62,11 +62,11 @@ def resolve_includes(value: Any) -> Any:
         key: resolve_includes(item) for key, item in value.items() if key != INCLUDE_KEY
     }
 
-    name = value.get(INCLUDE_KEY)
-    if not isinstance(name, str):
+    location = value.get(INCLUDE_KEY)
+    if not isinstance(location, str):
         return resolved
 
-    merged = dict(read_shared(name))
+    merged = dict(read_shared(location))
     merged.update(resolved)
     return merged
 

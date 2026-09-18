@@ -19,12 +19,12 @@ output_guard:
 
   # deny_path_segments, deny_file_patterns, allow_environment_templates
   paths:
-    include: secrets
+    include: shared/sensitive-artifacts.yaml
 
   # read_commands — их вывод не проверяется на имена файлов: показать текст файла
   # это не то же самое, что до него добраться.
   commands:
-    include: read_commands
+    include: shared/read-commands.yaml
 
   secret_indicators:
     - secret

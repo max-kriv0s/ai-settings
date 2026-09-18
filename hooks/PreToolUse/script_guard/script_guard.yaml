@@ -10,19 +10,19 @@ script_guard:
   timeout: 5
   status_message: Проверка запускаемого скрипта
   paths:
-    include: secrets
+    include: shared/sensitive-artifacts.yaml
 
   # segment_separator — чем командная строка режется на отдельные команды
   syntax:
-    include: command_syntax
+    include: shared/command-syntax.yaml
 
   # names, shells, launchers — чем запускают файл с кодом
   interpreters:
-    include: interpreters
+    include: shared/interpreters.yaml
 
   # read_commands — их аргумент показывают, а не исполняют
   commands:
-    include: read_commands
+    include: shared/read-commands.yaml
 
   execution:
     # Сколько байт скрипта читать. Большой файл не запрещается: проверяется начало.

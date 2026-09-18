@@ -123,7 +123,9 @@ def decide(guard: Path, payload: HookPayload) -> str:
         return "не объект"
 
     specific = parsed.get("hookSpecificOutput")
-    decision = specific.get("permissionDecision") if isinstance(specific, dict) else None
+    decision = (
+        specific.get("permissionDecision") if isinstance(specific, dict) else None
+    )
     if not isinstance(decision, str):
         decision = parsed.get("decision")
 

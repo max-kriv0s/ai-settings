@@ -9,8 +9,18 @@ vars:
     hooks/PreToolUse/script_guard/test_script_guard.py
     hooks/PreToolUse/write_guard/test_write_guard.py
     hooks/PostToolUse/output_guard/test_output_guard.py
+  SYNC_TESTS: >-
+    scripts/tools/test_codex_permissions.py
+  TESTS: >-
+    {{.GUARD_TESTS}}
+    {{.SYNC_TESTS}}
 
 tasks:
+  lock:
+    desc: "Resolve and update the dependency lockfile."
+    cmds:
+      - UV_CACHE_DIR={{.UV_CACHE_DIR}} uv lock
+
   generate:
     desc: "Generate managed code blocks in every guard from its yaml."
     cmds:
@@ -30,7 +40,7 @@ tasks:
   test:
     desc: "Проверить guard-ы. Без аргумента — все, иначе только указанные файлы. Пример: task test -- hooks/PreToolUse/write_guard/test_write_guard.py"
     vars:
-      TARGETS: '{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.GUARD_TESTS}}{{end}}'
+      TARGETS: '{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.TESTS}}{{end}}'
     cmds:
       - for: { var: TARGETS }
         cmd: |
@@ -45,7 +55,7 @@ tasks:
   test-plan:
     desc: "То же на превью-guard-ах, боевые не трогаются. Без аргумента — все файлы, иначе указанные."
     vars:
-      TARGETS: '{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.GUARD_TESTS}}{{end}}'
+      TARGETS: '{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}{{.TESTS}}{{end}}'
     cmds:
       - task generate-plan
       - for: { var: TARGETS }

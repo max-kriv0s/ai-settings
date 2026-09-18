@@ -16,11 +16,11 @@ command_guard:
 
   # deny_path_segments, deny_file_patterns, allow_environment_templates
   paths:
-    include: secrets
+    include: shared/sensitive-artifacts.yaml
 
   # segment_separator — чем командная строка режется на отдельные команды
   syntax:
-    include: command_syntax
+    include: shared/command-syntax.yaml
 
   # Паттерны матчатся по сегменту команды: строка разрезана по `|`, `;`, `&&`, `$(`,
   # переводу строки; с начала сняты sudo / uv run / do / FOO=bar. Поэтому `^` означает
@@ -67,8 +67,11 @@ command_guard:
       - '^docker\s+compose\s+config\b'
       - '^docker-compose\s+config\b'
 
+    # Слово, а не только команда: `cd .ssh`, `cat x.ssh`, `--ssh` — всё это обращение
+    # к удалённому доступу или к каталогу ключей. В обычной работе слово не нужно,
+    # поэтому цена запрета — невозможность искать его по файлам — приемлема.
     remote_access:
-      - '^(ssh|scp|sftp|ssh-add|ssh-agent|ssh-keygen|ssh-copy-id)\b'
+      - '\b(ssh|scp|sftp)\b'
       - '\b(IdentityFile|IdentitiesOnly|SSH_AUTH_SOCK)\b'
       - '(ssh://|git@[^:\s]+:)'
 
@@ -76,7 +79,7 @@ command_guard:
   # Шеллы здесь же: `curl x | bash` — это bash, читающий stdin.
   interpreters:
     # names, shells, launchers — из shared/interpreters.yaml
-    include: interpreters
+    include: shared/interpreters.yaml
 
     # Следующий токен — значение флага, а не имя файла.
     valued_flags:

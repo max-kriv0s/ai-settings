@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import re
 import shlex
 import sys
@@ -22,6 +23,7 @@ from typing import Any
 GUARD_SETTINGS: dict[str, Any] = {'script_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
                             'deny_file_patterns': ['.env',
                                                    '.env.*',
+                                                   '*.local',
                                                    '*.local.*',
                                                    '*.secret',
                                                    '*.secrets',
@@ -150,22 +152,27 @@ def looks_like_path(value: str) -> bool:
 
 
 def denied(value: str) -> bool:
+    """Каждая часть пути по обоим спискам: запрещённый каталог бывает и в середине."""
     paths = section("paths")
-    parts = [part for part in PurePath(value).parts if part not in {"", "/"}]
-    if any(part in paths.get("deny_path_segments", []) for part in parts):
-        return True
+    segments = paths.get("deny_path_segments", [])
+    denied_files = paths.get("deny_file_patterns", [])
+    allowed = paths.get("allow_environment_templates", [])
 
-    name = PurePath(value).name
-    if any(
-        fnmatch.fnmatchcase(name, pattern)
-        for pattern in paths.get("allow_environment_templates", [])
-    ):
-        return False
+    for chunk in value.split("="):
+        for part in PurePath(chunk).parts:
+            if part in {"", "/"}:
+                continue
 
-    return any(
-        fnmatch.fnmatchcase(name, pattern)
-        for pattern in paths.get("deny_file_patterns", [])
-    )
+            if part in segments:
+                return True
+
+            if any(fnmatch.fnmatchcase(part, pattern) for pattern in allowed):
+                continue
+
+            if any(fnmatch.fnmatchcase(part, pattern) for pattern in denied_files):
+                return True
+
+    return False
 
 
 def script_token(tokens: list[str]) -> tuple[str | None, str | None]:
@@ -209,15 +216,25 @@ def command_segments(command: str) -> list[str]:
 
 
 def changed_directory(tokens: list[str], current: Path) -> Path | None:
-    """`cd sub && python x.py` runs x.py in sub, so the path must follow the cd."""
-    if PurePath(tokens[0]).name != "cd" or len(tokens) < 2:
+    """`cd sub && python x.py` runs x.py in sub, so the path must follow the cd.
+
+    Resolved as text, the same way command_guard does it: `~` expanded, `..` collapsed.
+    """
+    if PurePath(tokens[0]).name != "cd":
         return None
+
+    if len(tokens) < 2:
+        return Path(os.path.expanduser("~"))
 
     target = tokens[1]
     if any(mark in target for mark in DYNAMIC_MARKS):
         return None
 
-    return Path(target) if Path(target).is_absolute() else current / target
+    expanded = os.path.expanduser(target)
+    if not os.path.isabs(expanded):
+        expanded = os.path.join(str(current), expanded)
+
+    return Path(os.path.normpath(expanded))
 
 
 def script_paths(command: str, cwd: str) -> tuple[list[Path], str | None]:

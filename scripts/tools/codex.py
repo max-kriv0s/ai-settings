@@ -6,8 +6,9 @@ import os
 from pathlib import Path
 from typing import Any
 
+import tomlkit
 from config import REPO_ROOT
-from contracts import AgentSettings, Hook, Skill
+from contracts import AgentSettings, Hook, Permission, Skill
 from json_settings import (
     HOOK_MATCHER,
     hook_event_name,
@@ -22,6 +23,8 @@ CODEX_HOOKS_DIR = CODEX_DIR / "hooks"
 CODEX_SKILLS_DIR = CODEX_DIR / "skills"
 CODEX_AGENTS_FILE = CODEX_DIR / "AGENTS.md"
 CODEX_HOOKS_FILE = CODEX_DIR / "hooks.json"
+CODEX_CONFIG_FILE = CODEX_DIR / "config.toml"
+FILESYSTEM_ACCESS_VALUES = {"deny", "read", "write"}
 
 
 class SyncError(RuntimeError):
@@ -155,10 +158,109 @@ def sync_hooks(hooks: list[Hook], mode: str) -> None:
         write_settings(CODEX_HOOKS_FILE, settings)
 
 
+def permission_rules(permissions: list[Permission]) -> dict[str, str]:
+    """Map the shared path policy to Codex workspace-root permission rules."""
+    rules: dict[str, str] = {}
+    for permission in permissions:
+        config = permission.config
+        for segment in config.get("deny_path_segments", []):
+            if isinstance(segment, str):
+                rules[f"**/{segment}"] = "deny"
+                rules[f"**/{segment}/**"] = "deny"
+        for pattern in config.get("deny_file_patterns", []):
+            if isinstance(pattern, str):
+                rules[f"**/{pattern}"] = "deny"
+    return rules
+
+
+def validate_permission_rules(rules: dict[str, str]) -> None:
+    invalid = set(rules.values()) - FILESYSTEM_ACCESS_VALUES
+    if invalid:
+        raise SyncError(
+            "renderer produced an unsupported Codex filesystem access value"
+        )
+
+
+def merge_permissions_document(document: str, permissions: list[Permission]) -> str:
+    """Update only managed workspace-root entries of the active permission profile."""
+    try:
+        parsed = tomlkit.parse(document)
+    except tomlkit.exceptions.ParseError as exc:
+        raise SyncError(
+            f"config.toml is not valid TOML, refusing to touch it: {exc}"
+        ) from exc
+
+    profile = parsed.get("default_permissions")
+    profiles = parsed.get("permissions")
+    if not isinstance(profile, str) or profiles is None:
+        raise SyncError("config.toml must define default_permissions and permissions")
+    if profile.startswith(":") or profile not in profiles:
+        raise SyncError("default_permissions must name an existing custom profile")
+
+    rules = permission_rules(permissions)
+    if not rules:
+        return document
+    validate_permission_rules(rules)
+
+    profile_table = profiles[profile]
+    filesystem = profile_table.get("filesystem")
+    if filesystem is None or ":workspace_roots" not in filesystem:
+        raise SyncError(
+            "active permission profile must define filesystem.:workspace_roots"
+        )
+    workspace = filesystem[":workspace_roots"]
+    legacy_keys = {"**/.env*", "**/*.example", "**/*.local"}
+    managed_keys = set(rules) | legacy_keys
+    for key in managed_keys:
+        workspace.pop(key, None)
+    for key, access in rules.items():
+        workspace[key] = access
+    return tomlkit.dumps(parsed)
+
+
+def backup_config_once(target: Path) -> None:
+    backup = target.with_name(f"{target.name}.bak")
+    if not backup.exists():
+        backup.write_text(target.read_text(encoding="utf-8"), encoding="utf-8")
+
+
+def write_config_document(document: str) -> None:
+    target = (
+        CODEX_CONFIG_FILE.resolve()
+        if CODEX_CONFIG_FILE.is_symlink()
+        else CODEX_CONFIG_FILE
+    )
+    mode = target.stat().st_mode if target.exists() else None
+    backup_config_once(target)
+    temp_file = target.with_name(f"{target.name}.tmp")
+    temp_file.write_text(document, encoding="utf-8")
+    if mode is not None:
+        os.chmod(temp_file, mode)
+    os.replace(temp_file, target)
+
+
+def sync_permissions(permissions: list[Permission], mode: str) -> None:
+    if not permissions:
+        return
+    if not CODEX_CONFIG_FILE.exists():
+        raise SyncError(
+            "Codex config.toml is missing; cannot resolve default_permissions"
+        )
+
+    document = CODEX_CONFIG_FILE.read_text(encoding="utf-8")
+    updated = merge_permissions_document(document, permissions)
+    action = "ok" if updated == document else "update_permissions"
+    print(f"{action}: permissions -> codex")
+    print(f"  target: {CODEX_CONFIG_FILE}")
+    if mode == "apply" and updated != document:
+        write_config_document(updated)
+
+
 def sync(settings: AgentSettings, mode: str) -> None:
     sync_agents_md(settings, mode)
 
     for skill in settings.skills:
         sync_skill(skill, mode)
 
+    sync_permissions(settings.permissions, mode)
     sync_hooks(settings.hooks, mode)

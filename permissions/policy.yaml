@@ -7,8 +7,8 @@ read_policy:
   enabled: true
   tools:
     - all
-  # deny_path_segments, deny_file_patterns, allow_environment_templates — из shared/secrets.yaml
-  include: secrets
+  # deny_path_segments, deny_file_patterns, allow_environment_templates
+  include: shared/sensitive-artifacts.yaml
 
   order:
     - deny_sensitive_path_segments

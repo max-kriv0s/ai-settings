@@ -20,6 +20,7 @@ from typing import Any
 GUARD_SETTINGS: dict[str, Any] = {'output_guard': {'paths': {'deny_path_segments': ['.ssh', 'ssh'],
                             'deny_file_patterns': ['.env',
                                                    '.env.*',
+                                                   '*.local',
                                                    '*.local.*',
                                                    '*.secret',
                                                    '*.secrets',
@@ -120,19 +121,22 @@ def find_denied_path(text: str) -> str | None:
     allowed = paths.get("allow_environment_templates", [])
 
     for token in TOKEN_PATTERN.findall(text):
-        file_name = PurePath(token).name
-        if matches_any(file_name, allowed):
-            continue
+        # Каждая часть пути по обоим спискам: запрещённый каталог бывает и в середине,
+        # как в `config/credentials/db.yml`. Правило то же, что в command_guard.
+        for part in PurePath(token).parts:
+            if part in {"", "/"}:
+                continue
 
-        if "/" in token:
-            segments = [part for part in PurePath(token).parts if part not in {"", "/"}]
-            if any(segment in denied_segments for segment in segments):
+            if part in denied_segments:
                 return (
                     "Blocked because the tool output references a denied path segment."
                 )
 
-        if matches_any(file_name, denied_files) or KEY_FILE_PATTERN.match(file_name):
-            return "Blocked because the tool output names a file that may hold secrets."
+            if matches_any(part, allowed):
+                continue
+
+            if matches_any(part, denied_files) or KEY_FILE_PATTERN.match(part):
+                return "Blocked because the tool output names a file that may hold secrets."
 
     return None
 
